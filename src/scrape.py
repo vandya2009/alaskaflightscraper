@@ -21,7 +21,7 @@ from src.routes import planned_searches
 from src.sheets import append_log, append_results
 
 
-PROMPT_WINDOW_DAYS = 4  # +/- N days around the entered date
+PROMPT_WINDOW_DAYS = 1  # +/- N days around the entered date
 
 
 def _prompt_for_date() -> list[str] | None:
