@@ -121,8 +121,9 @@ search_step_days: 14
 
 # Trip details
 adults: 1
-seat_type: ECONOMY        # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
-max_stops: ANY            # ANY, NON_STOP, ONE_STOP_OR_FEWER, TWO_OR_FEWER_STOPS
+seat_type: ECONOMY            # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
+max_stops: ANY                # ANY, NON_STOP, ONE_STOP_OR_FEWER, TWO_OR_FEWER_STOPS
+exclude_basic_economy: true   # Drop Alaska Saver / AA Basic Economy / etc.
 
 # Filters
 min_distance_miles: 1900        # Skip routes shorter than this (great-circle)

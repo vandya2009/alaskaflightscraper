@@ -56,6 +56,7 @@ def search_one_way(
     seat_type: str = "ECONOMY",
     max_stops: str = "ANY",
     top_n: int = 1,
+    exclude_basic_economy: bool = True,
 ) -> list[dict]:
     """Return up to `top_n` cheapest qualifying one-way itineraries.
 
@@ -67,6 +68,7 @@ def search_one_way(
         seat_type=_SEAT_TYPE_MAP[seat_type.upper()],
         stops=_MAX_STOPS_MAP[max_stops.upper()],
         sort_by=SortBy.CHEAPEST,
+        exclude_basic_economy=exclude_basic_economy,
         flight_segments=[
             FlightSegment(
                 departure_airport=[[_airport(origin), 0]],

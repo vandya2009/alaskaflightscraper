@@ -23,6 +23,7 @@ def main() -> None:
     adults = int(SETTINGS.get("adults", 1))
     seat_type = str(SETTINGS.get("seat_type", "ECONOMY"))
     max_stops = str(SETTINGS.get("max_stops", "ANY"))
+    exclude_basic_economy = bool(SETTINGS.get("exclude_basic_economy", True))
     allowed_airlines = {a.upper() for a in SETTINGS["allowed_airlines"]}
 
     all_rows: list[dict] = []
@@ -49,6 +50,7 @@ def main() -> None:
                 seat_type=seat_type,
                 max_stops=max_stops,
                 top_n=top_n,
+                exclude_basic_economy=exclude_basic_economy,
             )
         except Exception as e:
             print(f"      Failed: {e}", flush=True)
