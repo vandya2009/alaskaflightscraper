@@ -3,12 +3,17 @@
 Run from the project folder with:
     python -m src.scrape
 
+You'll be prompted for a single departure date (YYYY-MM-DD). Press Enter
+to fall back to the date-sweep configured in settings.yaml.
+
 Only itineraries flown entirely by `allowed_airlines` are returned by the
 search. Of those, only results with cents_per_mile < `record_threshold_cpm`
 are written to the Results tab; results below `deal_threshold_cpm` are also
 written to the Best Deals tab.
 """
+import sys
 import time
+from datetime import date, timedelta
 
 from src.config import SETTINGS
 from src.flights import search_one_way
@@ -16,7 +21,38 @@ from src.routes import planned_searches
 from src.sheets import append_log, append_results
 
 
+def _prompt_for_date() -> list[str] | None:
+    """Ask for a single departure date. Returns None for sweep mode."""
+    tomorrow = date.today() + timedelta(days=1)
+    prompt = (
+        f"Departure date (YYYY-MM-DD, must be on or after {tomorrow.isoformat()}),\n"
+        f"or press Enter to sweep the date range from settings.yaml: "
+    )
+    while True:
+        try:
+            raw = input(prompt).strip()
+        except EOFError:
+            return None
+        if not raw:
+            return None
+        try:
+            d = date.fromisoformat(raw)
+        except ValueError:
+            print(f"  '{raw}' is not a valid YYYY-MM-DD date. Try again.\n")
+            continue
+        if d < tomorrow:
+            print(f"  Date must be on or after {tomorrow.isoformat()}. Try again.\n")
+            continue
+        return [d.isoformat()]
+
+
 def main() -> None:
+    dates_override = _prompt_for_date()
+    if dates_override:
+        print(f"\nSingle-date mode: {dates_override[0]}\n", flush=True)
+    else:
+        print("\nSweep mode: using date range from settings.yaml\n", flush=True)
+
     record_cpm = float(SETTINGS["record_threshold_cpm"])
     deal_cpm = float(SETTINGS["deal_threshold_cpm"])
     top_n = int(SETTINGS.get("top_n_per_search", 1))
@@ -30,7 +66,7 @@ def main() -> None:
     deal_rows: list[dict] = []
     errors: list[str] = []
 
-    plans = list(planned_searches())
+    plans = list(planned_searches(dates_override=dates_override))
     print(f"Running {len(plans)} flight searches...", flush=True)
 
     for i, plan in enumerate(plans, start=1):

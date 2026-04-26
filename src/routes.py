@@ -26,20 +26,27 @@ def _distance_miles(origin: str, destination: str) -> float:
     return haversine(_coords(origin), _coords(destination), unit=Unit.MILES)
 
 
-def planned_searches() -> Iterator[dict]:
-    """Yield one search plan per (origin, destination, departure date)."""
+def planned_searches(dates_override: list[str] | None = None) -> Iterator[dict]:
+    """Yield one search plan per (origin, destination, departure date).
+
+    If `dates_override` is given, those dates are used and the date-sweep
+    settings in settings.yaml are ignored.
+    """
     origins = [o.upper() for o in SETTINGS["home_airports"]]
     destinations = [d.upper() for d in SETTINGS["destinations"]]
-    start = int(SETTINGS["search_start_days"])
-    window = int(SETTINGS["search_window_days"])
-    step = max(1, int(SETTINGS["search_step_days"]))
     min_dist = float(SETTINGS.get("min_distance_miles", 0))
 
-    today = date.today()
-    dates = [
-        (today + timedelta(days=d)).isoformat()
-        for d in range(start, start + window, step)
-    ]
+    if dates_override:
+        dates = list(dates_override)
+    else:
+        start = int(SETTINGS["search_start_days"])
+        window = int(SETTINGS["search_window_days"])
+        step = max(1, int(SETTINGS["search_step_days"]))
+        today = date.today()
+        dates = [
+            (today + timedelta(days=d)).isoformat()
+            for d in range(start, start + window, step)
+        ]
 
     for origin in origins:
         for dest in destinations:
