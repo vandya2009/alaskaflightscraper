@@ -1,0 +1,26 @@
+# The airport you fly out of (3-letter IATA code).
+home_airport: SEA
+
+# Destinations to monitor. Add or remove as you like.
+destinations:
+  - ANC   # Anchorage
+  - FAI   # Fairbanks
+  - JNU   # Juneau
+  - KTN   # Ketchikan
+
+# Date range to search.
+# Example below: search dates 14 to 74 days from today, sampling every 7 days.
+search_start_days: 14
+search_window_days: 60
+search_step_days: 7
+
+# Trip details
+adults: 1
+seat_type: ECONOMY        # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
+max_stops: ANY            # ANY, NON_STOP, ONE_STOP_OR_FEWER, TWO_OR_FEWER_STOPS
+
+# Flights at or below this USD price are also written to the "Best Deals" tab.
+deal_threshold_usd: 250
+
+# How many cheapest flights to record per (route, date) pair. 1 = cheapest only.
+top_n_per_search: 1
