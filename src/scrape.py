@@ -21,12 +21,20 @@ from src.routes import planned_searches
 from src.sheets import append_log, append_results
 
 
+PROMPT_WINDOW_DAYS = 4  # +/- N days around the entered date
+
+
 def _prompt_for_date() -> list[str] | None:
-    """Ask for a single departure date. Returns None for sweep mode."""
+    """Ask for a target departure date. Returns None for sweep mode.
+
+    A valid input expands to a 9-date window: the entered date plus
+    `PROMPT_WINDOW_DAYS` days before and after, clamped to >= tomorrow.
+    """
     tomorrow = date.today() + timedelta(days=1)
     prompt = (
-        f"Departure date (YYYY-MM-DD, must be on or after {tomorrow.isoformat()}),\n"
-        f"or press Enter to sweep the date range from settings.yaml: "
+        f"Departure date (YYYY-MM-DD, must be on or after {tomorrow.isoformat()}).\n"
+        f"  Searches that date +/- {PROMPT_WINDOW_DAYS} days. "
+        f"Press Enter to use settings.yaml instead: "
     )
     while True:
         try:
@@ -43,13 +51,21 @@ def _prompt_for_date() -> list[str] | None:
         if d < tomorrow:
             print(f"  Date must be on or after {tomorrow.isoformat()}. Try again.\n")
             continue
-        return [d.isoformat()]
+        window = [
+            d + timedelta(days=offset)
+            for offset in range(-PROMPT_WINDOW_DAYS, PROMPT_WINDOW_DAYS + 1)
+        ]
+        return [day.isoformat() for day in window if day >= tomorrow]
 
 
 def main() -> None:
     dates_override = _prompt_for_date()
     if dates_override:
-        print(f"\nSingle-date mode: {dates_override[0]}\n", flush=True)
+        print(
+            f"\nWindowed mode: {len(dates_override)} dates "
+            f"({dates_override[0]} -> {dates_override[-1]})\n",
+            flush=True,
+        )
     else:
         print("\nSweep mode: using date range from settings.yaml\n", flush=True)
 
