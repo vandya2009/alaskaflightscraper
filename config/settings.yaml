@@ -114,10 +114,10 @@ destinations:
   - KEF
 
 # Date range to search.
-# Example below: search dates 14 to 74 days from today, sampling every 14 days.
-search_start_days: 14
-search_window_days: 60
-search_step_days: 14
+# Default: the next 7 days (tomorrow through one week out, every day).
+search_start_days: 1
+search_window_days: 7
+search_step_days: 1
 
 # Trip details
 adults: 1
