@@ -1,24 +1,57 @@
-"""Builds the list of flight searches to run, based on settings.yaml."""
+"""Builds the list of flight searches to run, based on settings.yaml.
+
+Each plan is a (origin, destination, depart_date) combination, with the
+great-circle distance pre-computed. Routes shorter than `min_distance_miles`
+are filtered out so we never query Google Flights for them.
+"""
 from datetime import date, timedelta
 from typing import Iterator
 
+import airportsdata
+from haversine import Unit, haversine
+
 from src.config import SETTINGS
+
+_AIRPORTS = airportsdata.load("IATA")
+
+
+def _coords(code: str) -> tuple[float, float]:
+    info = _AIRPORTS.get(code.upper())
+    if info is None:
+        raise ValueError(f"Unknown airport code in airportsdata: {code}")
+    return (info["lat"], info["lon"])
+
+
+def _distance_miles(origin: str, destination: str) -> float:
+    return haversine(_coords(origin), _coords(destination), unit=Unit.MILES)
 
 
 def planned_searches() -> Iterator[dict]:
-    """Yield one search plan per (destination, departure date) combination."""
-    home = SETTINGS["home_airport"].upper()
+    """Yield one search plan per (origin, destination, departure date)."""
+    origins = [o.upper() for o in SETTINGS["home_airports"]]
     destinations = [d.upper() for d in SETTINGS["destinations"]]
     start = int(SETTINGS["search_start_days"])
     window = int(SETTINGS["search_window_days"])
     step = max(1, int(SETTINGS["search_step_days"]))
+    min_dist = float(SETTINGS.get("min_distance_miles", 0))
 
     today = date.today()
-    for day_offset in range(start, start + window, step):
-        depart_date = today + timedelta(days=day_offset)
+    dates = [
+        (today + timedelta(days=d)).isoformat()
+        for d in range(start, start + window, step)
+    ]
+
+    for origin in origins:
         for dest in destinations:
-            yield {
-                "origin": home,
-                "destination": dest,
-                "depart_date": depart_date.isoformat(),
-            }
+            if dest == origin:
+                continue
+            dist = _distance_miles(origin, dest)
+            if dist < min_dist:
+                continue
+            for depart_date in dates:
+                yield {
+                    "origin": origin,
+                    "destination": dest,
+                    "depart_date": depart_date,
+                    "distance_miles": round(dist, 1),
+                }

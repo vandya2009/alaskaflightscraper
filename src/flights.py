@@ -1,4 +1,9 @@
-"""Searches Google Flights for one (origin, destination, date) at a time."""
+"""Searches Google Flights for one (origin, destination, date) at a time.
+
+Filters results down to itineraries flown ENTIRELY by carriers in
+`allowed_airlines` (matched on the IATA two-letter code) and computes
+cents-per-mile against the supplied great-circle distance.
+"""
 from fli.models import (
     Airport,
     FlightSearchFilters,
@@ -37,16 +42,25 @@ def _airport(code: str) -> Airport:
         ) from e
 
 
+def _all_legs_allowed(itinerary, allowed: set[str]) -> bool:
+    return all(leg.airline.name in allowed for leg in itinerary.legs)
+
+
 def search_one_way(
     origin: str,
     destination: str,
     depart_date: str,
+    distance_miles: float,
+    allowed_airlines: set[str],
     adults: int = 1,
     seat_type: str = "ECONOMY",
     max_stops: str = "ANY",
     top_n: int = 1,
 ) -> list[dict]:
-    """Return up to `top_n` cheapest one-way flights as plain dictionaries."""
+    """Return up to `top_n` cheapest qualifying one-way itineraries.
+
+    "Qualifying" = every leg is operated by a carrier in `allowed_airlines`.
+    """
     filters = FlightSearchFilters(
         trip_type=TripType.ONE_WAY,
         passenger_info=PassengerInfo(adults=adults),
@@ -63,16 +77,22 @@ def search_one_way(
     )
 
     results = _SEARCH_CLIENT.search(filters) or []
+    qualifying = [r for r in results if _all_legs_allowed(r, allowed_airlines)]
+
     rows: list[dict] = []
-    for r in results[:top_n]:
+    for r in qualifying[:top_n]:
         first_leg = r.legs[0]
         last_leg = r.legs[-1]
+        price = float(r.price)
+        cpm = (price * 100.0) / distance_miles if distance_miles > 0 else 0.0
         rows.append(
             {
                 "origin": origin.upper(),
                 "destination": destination.upper(),
                 "depart_date": depart_date,
-                "price_usd": float(r.price),
+                "distance_miles": round(distance_miles, 1),
+                "price_usd": price,
+                "cents_per_mile": round(cpm, 2),
                 "stops": int(r.stops),
                 "duration_minutes": int(r.duration),
                 "airline": first_leg.airline.value,

@@ -2,6 +2,11 @@
 
 Run from the project folder with:
     python -m src.scrape
+
+Only itineraries flown entirely by `allowed_airlines` are returned by the
+search. Of those, only results with cents_per_mile < `record_threshold_cpm`
+are written to the Results tab; results below `deal_threshold_cpm` are also
+written to the Best Deals tab.
 """
 import time
 
@@ -12,11 +17,13 @@ from src.sheets import append_log, append_results
 
 
 def main() -> None:
-    threshold = SETTINGS.get("deal_threshold_usd")
+    record_cpm = float(SETTINGS["record_threshold_cpm"])
+    deal_cpm = float(SETTINGS["deal_threshold_cpm"])
     top_n = int(SETTINGS.get("top_n_per_search", 1))
     adults = int(SETTINGS.get("adults", 1))
     seat_type = str(SETTINGS.get("seat_type", "ECONOMY"))
     max_stops = str(SETTINGS.get("max_stops", "ANY"))
+    allowed_airlines = {a.upper() for a in SETTINGS["allowed_airlines"]}
 
     all_rows: list[dict] = []
     deal_rows: list[dict] = []
@@ -26,13 +33,18 @@ def main() -> None:
     print(f"Running {len(plans)} flight searches...", flush=True)
 
     for i, plan in enumerate(plans, start=1):
-        label = f"{plan['origin']} -> {plan['destination']} on {plan['depart_date']}"
+        label = (
+            f"{plan['origin']} -> {plan['destination']} on {plan['depart_date']} "
+            f"({plan['distance_miles']:.0f} mi)"
+        )
         print(f"  [{i}/{len(plans)}] {label}", flush=True)
         try:
             rows = search_one_way(
                 origin=plan["origin"],
                 destination=plan["destination"],
                 depart_date=plan["depart_date"],
+                distance_miles=plan["distance_miles"],
+                allowed_airlines=allowed_airlines,
                 adults=adults,
                 seat_type=seat_type,
                 max_stops=max_stops,
@@ -44,22 +56,29 @@ def main() -> None:
             continue
 
         if not rows:
-            print("      No flights found.", flush=True)
+            print("      No qualifying flights.", flush=True)
             continue
 
-        cheapest = min(r["price_usd"] for r in rows)
-        print(f"      Cheapest: ${cheapest:.0f}", flush=True)
+        kept = [r for r in rows if r["cents_per_mile"] < record_cpm]
+        if not kept:
+            cheapest_cpm = min(r["cents_per_mile"] for r in rows)
+            print(f"      Above threshold (cheapest {cheapest_cpm:.1f}¢/mi).", flush=True)
+            continue
 
-        all_rows.extend(rows)
-        if threshold is not None:
-            deal_rows.extend(r for r in rows if r["price_usd"] <= float(threshold))
+        best = min(kept, key=lambda r: r["cents_per_mile"])
+        print(
+            f"      Recording {len(kept)}: best ${best['price_usd']:.0f} "
+            f"@ {best['cents_per_mile']:.1f}¢/mi on {best['airline']}",
+            flush=True,
+        )
+        all_rows.extend(kept)
+        deal_rows.extend(r for r in kept if r["cents_per_mile"] < deal_cpm)
 
-        # Be polite. Small pause between searches.
         time.sleep(1)
 
     print(
         f"\nWriting {len(all_rows)} results "
-        f"({len(deal_rows)} below ${threshold}) to Google Sheets...",
+        f"({len(deal_rows)} below {deal_cpm}¢/mi) to Google Sheets...",
         flush=True,
     )
 
