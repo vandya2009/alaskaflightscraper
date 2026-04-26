@@ -76,7 +76,17 @@ def search_one_way(
         ],
     )
 
-    results = _SEARCH_CLIENT.search(filters) or []
+    try:
+        results = _SEARCH_CLIENT.search(filters) or []
+    except Exception as e:
+        # The fli library occasionally returns alternate-airport suggestions
+        # (e.g. "type object 'Airport' has no attribute 'XRL'") that it
+        # cannot map back to its own enum. Treat as "no results" instead of
+        # a hard failure so the run status stays OK.
+        if "has no attribute" in str(e):
+            return []
+        raise
+
     qualifying = [r for r in results if _all_legs_allowed(r, allowed_airlines)]
 
     rows: list[dict] = []

@@ -74,7 +74,8 @@ def main() -> None:
         all_rows.extend(kept)
         deal_rows.extend(r for r in kept if r["cents_per_mile"] < deal_cpm)
 
-        time.sleep(1)
+        # Slightly longer pause to avoid Google Flights rate-limiting (HTTP 429).
+        time.sleep(2)
 
     print(
         f"\nWriting {len(all_rows)} results "
