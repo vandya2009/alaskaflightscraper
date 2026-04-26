@@ -114,9 +114,9 @@ destinations:
   - KEF
 
 # Date range to search.
-# Default: the next 7 days (tomorrow through one week out, every day).
+# Default: the next 3 days (tomorrow, +2, +3).
 search_start_days: 1
-search_window_days: 7
+search_window_days: 3
 search_step_days: 1
 
 # Trip details
