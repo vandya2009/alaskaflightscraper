@@ -1,0 +1,8 @@
+.venv/
+credentials/
+.env
+__pycache__/
+*.pyc
+logs/
+*.json
+!alaska_destinations.json

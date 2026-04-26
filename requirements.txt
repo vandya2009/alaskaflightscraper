@@ -1,0 +1,8 @@
+requests>=2.31
+gspread>=6.2
+google-auth>=2.30
+airportsdata>=2026.3
+haversine>=2.8
+pyyaml>=6.0
+python-dotenv>=1.0
+flights>=0.8
