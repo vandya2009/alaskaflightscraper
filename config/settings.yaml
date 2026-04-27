@@ -102,16 +102,29 @@ destinations:
   - HND
   - KIX
   - ICN
+  - HKG    # Cathay Pacific hub
+  - KUL    # Malaysia Airlines hub
+  - CMB    # SriLankan hub
   # Oceania
   - SYD
   - AKL
   - PPG
   - PPT
   - RAR
+  - MEL    # Qantas hub
+  - BNE    # Qantas hub
+  - PER    # Qantas hub
   # Europe
   - FCO
   - LHR
   - KEF
+  - MAD    # Iberia hub
+  - HEL    # Finnair hub
+  # Middle East / Africa
+  - DOH    # Qatar Airways hub
+  - AMM    # Royal Jordanian hub
+  - MCT    # Oman Air hub
+  - CMN    # Royal Air Maroc hub
 
 # Date range to search.
 # Default: a single date exactly 30 days from today.
