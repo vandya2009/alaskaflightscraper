@@ -3,8 +3,8 @@
 Run from the project folder with:
     python -m src.scrape
 
-You'll be prompted for a single departure date (YYYY-MM-DD). Press Enter
-to fall back to the date-sweep configured in settings.yaml.
+You'll be prompted for departure airport(s) and a departure date.
+Press Enter at either prompt to fall back to the values in settings.yaml.
 
 Only itineraries flown entirely by `allowed_airlines` are returned by the
 search. Of those, only results with cents_per_mile < `record_threshold_cpm`
@@ -15,13 +15,43 @@ import sys
 import time
 from datetime import date, timedelta
 
+import airportsdata
+from fli.models import Airport
+
 from src.config import SETTINGS
 from src.flights import search_one_way
 from src.routes import planned_searches
 from src.sheets import append_log, append_results
 
+_AIRPORTS = airportsdata.load("IATA")
+
 
 PROMPT_WINDOW_DAYS = 1  # +/- N days around the entered date
+
+
+def _prompt_for_origins() -> list[str] | None:
+    """Ask for one or more origin airports. Returns None to use settings.yaml."""
+    default = [o.upper() for o in SETTINGS["home_airports"]]
+    prompt = (
+        f"Departure airport(s) — comma-separated IATA codes (e.g. JFK, JFK,EWR),\n"
+        f"  or press Enter to use settings.yaml default {default}: "
+    )
+    while True:
+        try:
+            raw = input(prompt).strip()
+        except EOFError:
+            return None
+        if not raw:
+            return None
+        codes = [c.strip().upper() for c in raw.split(",") if c.strip()]
+        invalid = [
+            c for c in codes
+            if c not in Airport.__members__ or c not in _AIRPORTS
+        ]
+        if invalid:
+            print(f"  Unknown airport code(s): {invalid}. Try again.\n")
+            continue
+        return codes
 
 
 def _prompt_for_date() -> list[str] | None:
@@ -59,15 +89,21 @@ def _prompt_for_date() -> list[str] | None:
 
 
 def main() -> None:
+    origins_override = _prompt_for_origins()
+    if origins_override:
+        print(f"\nOrigins: {origins_override}", flush=True)
+    else:
+        print(f"\nOrigins: {SETTINGS['home_airports']} (from settings.yaml)", flush=True)
+
     dates_override = _prompt_for_date()
     if dates_override:
         print(
-            f"\nWindowed mode: {len(dates_override)} dates "
+            f"Dates: {len(dates_override)} dates "
             f"({dates_override[0]} -> {dates_override[-1]})\n",
             flush=True,
         )
     else:
-        print("\nSweep mode: using date range from settings.yaml\n", flush=True)
+        print("Dates: sweep from settings.yaml\n", flush=True)
 
     record_cpm = float(SETTINGS["record_threshold_cpm"])
     deal_cpm = float(SETTINGS["deal_threshold_cpm"])
@@ -82,7 +118,12 @@ def main() -> None:
     deal_rows: list[dict] = []
     errors: list[str] = []
 
-    plans = list(planned_searches(dates_override=dates_override))
+    plans = list(
+        planned_searches(
+            dates_override=dates_override,
+            origins_override=origins_override,
+        )
+    )
     print(f"Running {len(plans)} flight searches...", flush=True)
 
     for i, plan in enumerate(plans, start=1):

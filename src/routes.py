@@ -26,13 +26,19 @@ def _distance_miles(origin: str, destination: str) -> float:
     return haversine(_coords(origin), _coords(destination), unit=Unit.MILES)
 
 
-def planned_searches(dates_override: list[str] | None = None) -> Iterator[dict]:
+def planned_searches(
+    dates_override: list[str] | None = None,
+    origins_override: list[str] | None = None,
+) -> Iterator[dict]:
     """Yield one search plan per (origin, destination, departure date).
 
     If `dates_override` is given, those dates are used and the date-sweep
     settings in settings.yaml are ignored.
+
+    If `origins_override` is given, those origins are used instead of
+    settings.yaml's home_airports list.
     """
-    origins = [o.upper() for o in SETTINGS["home_airports"]]
+    origins = [o.upper() for o in (origins_override or SETTINGS["home_airports"])]
     destinations = [d.upper() for d in SETTINGS["destinations"]]
     min_dist = float(SETTINGS.get("min_distance_miles", 0))
 
