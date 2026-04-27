@@ -129,7 +129,8 @@ def main() -> None:
         deal_rows.extend(r for r in kept if r["cents_per_mile"] < deal_cpm)
 
         # Pause between searches to avoid Google Flights rate-limiting (HTTP 429).
-        time.sleep(1.5)
+        # 1.5s was too aggressive at ~640 plans (10/642 = 1.5% failure rate).
+        time.sleep(2.0)
 
     print(
         f"\nWriting {len(all_rows)} results "
