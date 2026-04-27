@@ -127,7 +127,7 @@ exclude_basic_economy: true   # Drop Alaska Saver / AA Basic Economy / etc.
 
 # Filters
 min_distance_miles: 1900        # Skip routes shorter than this (great-circle)
-record_threshold_cpm: 8.0       # Only record flights with cents-per-mile below this
+record_threshold_cpm: 10.0      # Only record flights with cents-per-mile below this
 deal_threshold_cpm: 6.0         # Flights below this also go on the "Best Deals" tab
 
 # Only itineraries flown ENTIRELY by these carriers are kept.
