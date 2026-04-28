@@ -46,6 +46,15 @@ def _all_legs_allowed(itinerary, allowed: set[str]) -> bool:
     return all(leg.airline.name in allowed for leg in itinerary.legs)
 
 
+def _alaska_booking_url(origin: str, destination: str, depart_date: str, adults: int) -> str:
+    """One-way shop URL on alaskaair.com for the given route+date."""
+    return (
+        f"https://www.alaskaair.com/planbook?A={adults}"
+        f"&O={origin.upper()}&D={destination.upper()}"
+        f"&OD={depart_date}&RT=false"
+    )
+
+
 def search_one_way(
     origin: str,
     destination: str,
@@ -113,6 +122,9 @@ def search_one_way(
                 ),
                 "depart_time": first_leg.departure_datetime.strftime("%H:%M"),
                 "arrive_time": last_leg.arrival_datetime.strftime("%H:%M"),
+                "alaska_booking_url": _alaska_booking_url(
+                    origin, destination, depart_date, adults
+                ),
             }
         )
     return rows

@@ -144,8 +144,10 @@ record_threshold_cpm: 10.0      # Only record flights with cents-per-mile below 
 deal_threshold_cpm: 6.0         # Flights below this also go on the "Best Deals" tab
 
 # Only itineraries flown ENTIRELY by these carriers are kept.
-# Alaska + Oneworld alliance (IATA codes).
+# All listed carriers are bookable directly on alaskaair.com:
+# Oneworld members + Alaska's "Earn & Redeem" partners.
 allowed_airlines:
+  # Oneworld
   - AS    # Alaska Airlines
   - AA    # American Airlines
   - HA    # Hawaiian Airlines
@@ -162,6 +164,10 @@ allowed_airlines:
   - QR    # Qatar Airways
   - AT    # Royal Air Maroc
   - RJ    # Royal Jordanian
+  # Alaska Earn & Redeem partners (also bookable on alaskaair.com)
+  - EI    # Aer Lingus
+  - FI    # Icelandair
+  - KE    # Korean Air
 
 # How many cheapest qualifying flights to record per (route, date) pair.
 top_n_per_search: 1
