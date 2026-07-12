@@ -22,7 +22,8 @@ partners — and logs the ones with good value (low cents-per-mile) to a Google 
   - **Best Deals** tab — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
   - **Log** tab — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
     and result/deal counts.
-- Generates a one-click `alaskaair.com/planbook` booking link for each result.
+- Generates an `alaskaair.com/search/results` link for each result (see the
+  booking-link caveat below — it's not a guaranteed match).
 - Skips routes shorter than `min_distance_miles` (default 1900 mi) before ever
   hitting the network, since this is meant for long-haul award value, not short hops.
 
@@ -59,6 +60,59 @@ What's not there:
   email/Slack/push notification when a good deal is found.
 - **Scraper-dependent.** It relies on `fli` scraping Google Flights' internal API,
   which is unofficial and could break if Google changes that surface.
+
+## Booking link caveat
+
+Each row includes an `alaskaair.com/search/results` link, but it's built from just
+origin/destination/date/passenger count — no flight number, carrier, or fare class.
+Clicking it runs a **brand-new, independent search** on Alaska's own booking engine;
+it is not a deep link to the specific itinerary the row records. Two things follow:
+
+1. The price you see live can differ from `price_usd` simply because fares move
+   over time between when the row was recorded and when you click it.
+2. For itineraries operated by a partner airline (most of what gets recorded, since
+   Alaska's own metal is rarely the cheapest option) there's no guarantee Alaska's
+   engine can even reconstruct that same routing/fare — interline ticketing coverage
+   varies by partner and route. The link can show a completely different flight.
+
+With ~50+ rows per full sweep, hand-checking every link isn't practical. Treat
+`results.csv` as a price-discovery signal ("cents-per-mile was this good, on this
+route, around this time"), not a guaranteed bookable quote — always re-verify before
+booking.
+
+### Could a commercial API do better?
+
+Researched [SerpApi's Google Flights API](https://serpapi.com/google-flights-api) as
+an alternative to `fli`:
+
+- **It would fix the scraping-reliability problem** (an unofficial scraper that could
+  break any time), since it's a maintained, paid wrapper around the same Google
+  Flights data.
+- **It might partially fix the booking-link problem.** SerpApi supports a two-step
+  flow: search results include a `booking_token`, which you exchange in a second call
+  for [`booking_options`](https://serpapi.com/google-flights-booking-options) — real
+  vendor-specific booking URLs (or POST data) tied to *that exact itinerary*, sometimes
+  pointing straight at the airline's own site. That's a structurally better model than
+  hand-building a generic search URL.
+- **But it's not a guaranteed fix.** An [open SerpApi GitHub
+  issue](https://github.com/serpapi/public-roadmap/issues/3001) (filed Sep 2025,
+  unresolved, low-priority "freezer" status) reports the `booking_options` endpoint
+  returning *fewer* options than the live Google Flights site shows for the same
+  query — so even paying for this wouldn't guarantee Alaska's link reliably appears.
+- **Cost is real and scales with usage.** [Pricing](https://serpapi.com/pricing): free
+  tier is 250 searches/month — less than half of one full 642-search sweep. Paid tiers:
+  $25/mo (1,000 searches), $75/mo (5,000), $150/mo (15,000), $275/mo (30,000). A daily
+  full sweep at the current destination count (~642 base searches, plus one extra
+  `booking_options` call per qualifying result — currently ~54/run) is roughly
+  19,000-21,000 searches/month, i.e. the $275/mo tier. Weekly runs would fit the
+  $75/mo tier instead. (Not independently confirmed: whether the Google Flights
+  engine consumes credits 1:1 with SerpApi's other engines, or a different rate —
+  SerpApi's docs didn't specify this.)
+
+**Bottom line:** worth it only if you're running this often enough to justify a
+recurring cost, and only meaningfully improves — not fully solves — the booking-link
+problem. For occasional/manual runs, the current free scraping approach is more
+cost-effective despite its fragility.
 
 ## Setup
 
