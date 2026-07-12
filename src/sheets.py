@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from src.config import SERVICE_ACCOUNT_FILE, SHEET_ID
+from src.dedup import result_key
 
 _SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -46,6 +47,25 @@ def _ensure_headers(worksheet, headers: list[str]) -> None:
     first_row = worksheet.row_values(1)
     if first_row != headers:
         worksheet.update(range_name="A1", values=[headers])
+
+
+def existing_keys(tab_name: str) -> set[tuple]:
+    """Dedup keys already in this tab. Empty if the tab doesn't exist yet.
+
+    Uses get_all_values() (raw strings) rather than get_all_records(), since
+    the latter lets gspread infer types — which can round-trip the same price
+    as "300" instead of "300.0", silently breaking key matching.
+    """
+    sheet = _open_sheet()
+    try:
+        worksheet = sheet.worksheet(tab_name)
+    except gspread.exceptions.WorksheetNotFound:
+        return set()
+    values = worksheet.get_all_values()
+    if not values:
+        return set()
+    headers, *data_rows = values
+    return {result_key(dict(zip(headers, row))) for row in data_rows}
 
 
 def append_results(rows: list[dict], tab_name: str) -> None:

@@ -2,7 +2,8 @@
 
 Searches Google Flights for one-way itineraries that are bookable directly on
 alaskaair.com — Alaska Airlines, its Oneworld partners, and its "Earn & Redeem"
-partners — and logs the ones with good value (low cents-per-mile) to a Google Sheet.
+partners — and logs the ones with good value (low cents-per-mile) to local CSV
+files (default) or a Google Sheet (optional).
 
 > Note: I couldn't pull the content of the original design artifact this project was
 > built from (it's a JS-rendered page that fetches as an empty shell), so this README
@@ -17,11 +18,21 @@ partners — and logs the ones with good value (low cents-per-mile) to a Google 
   Icelandair, Korean Air) — since those are the only ones bookable through
   alaskaair.com.
 - Computes cents-per-mile (price ÷ great-circle distance) for each result.
-- Writes qualifying results to a Google Sheet:
-  - **Results** tab — anything under `record_threshold_cpm` (default 10.0¢/mi).
-  - **Best Deals** tab — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
-  - **Log** tab — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
+- Writes qualifying results **as they're found** (not buffered to the end of the run):
+  - **Results** — anything under `record_threshold_cpm` (default 10.0¢/mi).
+  - **Best Deals** — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
+  - **Log** — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
     and result/deal counts.
+  Controlled by `output_backend` in `settings.yaml`: `csv` (default, writes to
+  `output/*.csv`, no setup needed) or `sheets` (writes to a Google Sheet, needs
+  credentials — see Setup below).
+- Dedups against whatever's already recorded (on disk or in the Sheet, depending on
+  backend) so reruns don't re-log a fare you already know about. Delete the CSV (or
+  clear the Sheet tab) to reset and re-record everything from scratch.
+- Caches each `(route, date, filters)` search on disk for 60 minutes by default
+  (`.cache/flights/`, gitignored) — reruns within that window skip the network call
+  and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a
+  scheduled run where you always want live prices.
 - Generates an `alaskaair.com/search/results` link for each result (see the
   booking-link caveat below — it's not a guaranteed match).
 - Skips routes shorter than `min_distance_miles` (default 1900 mi) before ever
@@ -29,35 +40,40 @@ partners — and logs the ones with good value (low cents-per-mile) to a Google 
 
 ## How far along it is
 
-Working and runnable end-to-end for the flow above: prompt → search → filter →
-write to Sheets. Commit history (`git log`) shows it's been tuned against real runs
-(rate-limit pause adjusted after measuring a 1.5% failure rate at ~640 searches,
+Working and runnable end-to-end for the flow above: prompt (or CLI args) → search →
+filter → dedup → write. Commit history (`git log`) shows it's been tuned against real
+runs (rate-limit pause adjusted after measuring a 1.5% failure rate at ~640 searches,
 thresholds and destination list adjusted iteratively).
 
 What exists:
 - Interactive CLI (`python -m src.scrape`) that prompts for origin airport(s) and a
-  departure date, or falls back to `config/settings.yaml` defaults.
+  departure date, or falls back to `config/settings.yaml` defaults — **or**
+  non-interactive CLI args (`python -m src.scrape <date> [<airports>]`) for scripting
+  or eventual scheduled runs. See Usage below.
 - ~100 pre-configured destinations spanning the US, Alaska, Hawaii, Canada, Mexico,
   Central America, Asia, Oceania, Europe, and the Middle East/Africa — trimmed to
   those ≥1900 mi from the configured origins.
 - Basic resilience: per-search failures are caught and logged individually rather
   than aborting the whole run; a known `fli` quirk (alternate-airport suggestions it
-  can't map to its own enum) is swallowed as "no results" instead of crashing.
+  can't map to its own enum) is swallowed as "no results" instead of crashing; a crash
+  mid-sweep only loses the search in flight, not everything found so far, since writes
+  are incremental.
 
 What's not there:
-- **No automated scheduling.** No cron job, GitHub Action, or launchd plist — you
-  run it by hand each time.
+- **No automated scheduling.** No cron job, GitHub Action, or launchd plist yet — you
+  run it by hand each time (the CLI args above exist to make that easier to automate
+  later).
 - **No tests, linter, or CI.** There is no test suite in this repo.
-- **No dedup.** Every run appends new rows to the Sheet; nothing checks whether a
-  route/date/price was already recorded on a previous run.
 - **One-way only.** No round-trip search support.
-- **Sequential, not parallel.** Searches run one at a time with a 2-second pause
+- **Sequential, not parallel.** Live searches run one at a time with a 2-second pause
   between them (to avoid Google Flights rate-limiting), so a full sweep over 2
-  origins × ~100 destinations × a few dates takes on the order of 20+ minutes.
-- **Fixed destination list.** Only the origin airport(s) and date are prompted at
+  origins × ~100 destinations × 3 dates (~640 searches) takes ~25-30 minutes *when
+  nothing is cached*. Cached reruns skip both the network call and the pause, so
+  a same-day rerun can finish in well under a minute.
+- **Fixed destination list.** Only the origin airport(s) and date are configurable at
   runtime; destinations always come from `config/settings.yaml`.
-- **No alerting.** Results land in the Sheet and a Log row is appended; there's no
-  email/Slack/push notification when a good deal is found.
+- **No alerting.** Results land in `output/` (or the Sheet) and a Log row is appended;
+  there's no email/Slack/push notification when a good deal is found.
 - **Scraper-dependent.** It relies on `fli` scraping Google Flights' internal API,
   which is unofficial and could break if Google changes that surface.
 
@@ -118,39 +134,50 @@ cost-effective despite its fragility.
 
 1. **Python dependencies**
    ```
+   python3 -m venv .venv
+   source .venv/bin/activate   # re-run this in every new terminal session
    pip install -r requirements.txt
    ```
 
-2. **Google Sheet + service account**
+2. **Nothing else, if using the default CSV output.** `output_backend: csv` in
+   `config/settings.yaml` needs no credentials — results land in `output/*.csv`.
+
+3. **Google Sheet + service account — only if you set `output_backend: sheets`:**
    - Create a Google Cloud service account with Sheets + Drive API access, download
      its JSON key, and place it in `credentials/` (gitignored).
    - Share your target Google Sheet with the service account's email address.
+   - Add a `.env` file (gitignored) in the project root:
+     ```
+     SHEET_ID=your_google_sheet_id
+     GOOGLE_APPLICATION_CREDENTIALS=credentials/service_account.json
+     ```
+   - If `output_backend: sheets` is set but these aren't configured, `src/output.py`
+     fails fast at startup with a message telling you what to fix.
 
-3. **`.env`** (gitignored) in the project root:
-   ```
-   SHEET_ID=your_google_sheet_id
-   GOOGLE_APPLICATION_CREDENTIALS=credentials/service_account.json
-   ```
-   `src/config.py` fails fast with a descriptive error if either is missing, or if
-   the credentials file doesn't exist at that path.
-
-4. **`config/settings.yaml`** — tune origins, destinations, date sweep, seat type,
-   stop limits, cents-per-mile thresholds, and the allowed-airline list. See the
-   comments in that file for each option.
+4. **`config/settings.yaml`** — tune origins, destinations, date sweep/window, seat
+   type, stop limits, cents-per-mile thresholds, and the allowed-airline list. See
+   the comments in that file for each option.
 
 ## Usage
 
+Interactive (prompts for origin airport(s) and a departure date; press Enter at
+either to fall back to `settings.yaml`):
 ```
 python -m src.scrape
 ```
 
-You'll be prompted for:
-- **Departure airport(s)** — comma-separated IATA codes (e.g. `JFK,EWR`). Press
-  Enter to use `home_airports` from `settings.yaml`.
-- **Departure date** (`YYYY-MM-DD`) — expands to that date ± 1 day (3 dates
-  searched). Press Enter to use the date sweep configured in `settings.yaml`
-  instead (`search_start_days` / `search_window_days` / `search_step_days`).
+Non-interactive, for scripting or a specific date/route:
+```
+python -m src.scrape <date> [<airports>]
+```
+- `<date>` (`YYYY-MM-DD`, required in this mode) — expands to that date ±
+  `date_window_days` (default 1, so 3 dates total; configurable in `settings.yaml`).
+- `<airports>` (optional, comma-separated, e.g. `JFK,EWR`) — omit it, or pass `""`,
+  to use `home_airports` from `settings.yaml`.
+
+Example: `python -m src.scrape 2026-08-01 JFK` searches Jul 31 – Aug 2 from JFK only.
 
 Progress prints to the console as each `(origin, destination, date)` search runs.
-At the end, results are written to the Sheet and a summary row is appended to the
-`Log` tab.
+Each qualifying result is written immediately (to `output/*.csv` or the Sheet,
+per `output_backend`) rather than buffered to the end; a summary row is appended
+to the Log at the very end.

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.config import PROJECT_ROOT
+from src.dedup import result_key
 
 OUTPUT_DIR = PROJECT_ROOT / "output"
 
@@ -40,16 +41,6 @@ def _append_rows(path: Path, headers: list[str], rows: list[list]) -> None:
         writer.writerows(rows)
 
 
-def result_key(row: dict) -> tuple:
-    """Identifies a specific fare, so reruns don't re-record the same one.
-
-    price_usd is cast to str since existing_keys() reads it back from CSV as
-    a string (via csv.DictReader) — without this, an in-memory float key
-    would never match its own on-disk representation.
-    """
-    return (row["origin"], row["destination"], row["depart_date"], str(row["price_usd"]), row["flight_numbers"])
-
-
 def existing_keys(tab_name: str) -> set[tuple]:
     """Dedup keys already on disk for this tab. Empty if the file doesn't exist —
     e.g. because you deleted it — regardless of what's still in the search cache."""
@@ -57,10 +48,7 @@ def existing_keys(tab_name: str) -> set[tuple]:
     if not path.exists():
         return set()
     with path.open(newline="") as f:
-        return {
-            (row["origin"], row["destination"], row["depart_date"], row["price_usd"], row["flight_numbers"])
-            for row in csv.DictReader(f)
-        }  # values are already strings from DictReader, matching result_key()'s str(price_usd)
+        return {result_key(row) for row in csv.DictReader(f)}
 
 
 def append_results(rows: list[dict], tab_name: str) -> None:

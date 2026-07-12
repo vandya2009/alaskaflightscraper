@@ -1,3 +1,8 @@
+# Where results/log rows get written: "csv" (default, no setup — writes to
+# output/*.csv) or "sheets" (writes to a Google Sheet; needs SHEET_ID and
+# GOOGLE_APPLICATION_CREDENTIALS set in .env — see README.md).
+output_backend: csv
+
 # Origin airports — each destination is searched from each origin.
 home_airports:
   - JFK

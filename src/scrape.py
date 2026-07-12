@@ -27,7 +27,8 @@ from fli.models import Airport
 from src.config import SETTINGS
 from src.flights import search_one_way, was_cached
 from src.routes import planned_searches
-from src.csv_output import append_log, append_results, existing_keys, result_key
+from src.output import append_log, append_results, existing_keys
+from src.dedup import result_key
 
 _AIRPORTS = airportsdata.load("IATA")
 
