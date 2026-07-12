@@ -72,7 +72,17 @@ def test_google_flights_url_is_a_real_search_link(monkeypatch, one_leg_aa):
     rows = flights.search_one_way(**_search_kwargs(origin="jfk", destination="lax", depart_date="2026-08-10"))
     url = rows[0]["google_flights_url"]
     assert url.startswith("https://www.google.com/travel/flights?")
-    assert "q=Flights%20to%20LAX%20from%20JFK%20on%202026-08-10" in url
+    assert "q=Flights%20to%20LAX%20from%20JFK%20on%202026-08-10%20one%20way" in url
+
+
+def test_google_flights_url_specifies_one_way(monkeypatch, one_leg_aa):
+    """Regression test: without 'one way' in the query, Google Flights defaults
+    to round trip and silently picks its own return date -- confirmed live by
+    decoding a real generated URL's tfs= parameter, which came back with an
+    auto-added return leg roughly doubling the displayed price."""
+    monkeypatch.setattr(flights._SEARCH_CLIENT, "search", lambda filters: [one_leg_aa])
+    rows = flights.search_one_way(**_search_kwargs())
+    assert "one%20way" in rows[0]["google_flights_url"]
 
 
 def test_computes_cents_per_mile(monkeypatch, one_leg_aa):

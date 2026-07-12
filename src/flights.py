@@ -75,8 +75,14 @@ def _google_flights_url(origin: str, destination: str, depart_date: str) -> str:
     whether Alaska's own engine reproduces the same itinerary (see README's
     booking-link caveat). URL pattern confirmed from fli's own source
     (fli.search._booking_capture), which drives a real browser to this same URL.
+
+    "one way" is required in the query text: without it, Google Flights defaults
+    to round trip and silently picks its own return date, which roughly doubles
+    the displayed price relative to what we recorded (confirmed by decoding a
+    real generated URL's tfs= parameter — it came back with an auto-added
+    return leg neither the query nor we ever asked for).
     """
-    query = f"Flights to {destination.upper()} from {origin.upper()} on {depart_date}"
+    query = f"Flights to {destination.upper()} from {origin.upper()} on {depart_date} one way"
     return f"https://www.google.com/travel/flights?hl=en&curr=USD&gl=US&q={quote(query)}"
 
 

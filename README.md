@@ -108,6 +108,12 @@ tool's data is accurate and the whole gap is Alaska independently re-pricing the
 itinerary (expected, structural, not fixable here). If even *that* doesn't match,
 something's actually wrong with the price capture — worth reporting as a bug.
 
+**Confirmed working**: an earlier version of this link defaulted to round trip
+(Google Flights silently added its own return date when the query didn't say
+"one way"), showing a price roughly double the recorded one-way fare. Fixed by
+adding "one way" to the query text — verified against a real result where the
+live price then matched `price_usd` exactly ($625).
+
 ### Could a commercial API do better?
 
 Researched [SerpApi's Google Flights API](https://serpapi.com/google-flights-api) as
