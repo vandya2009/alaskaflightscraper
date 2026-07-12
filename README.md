@@ -9,79 +9,6 @@ files (default) or a Google Sheet (optional).
 > built from (it's a JS-rendered page that fetches as an empty shell), so this README
 > reflects the code as it exists in this repo today, not the original plan.
 
-## What it does
-
-- For every `(origin, destination, departure date)` combination, queries Google
-  Flights via the [`fli`](https://pypi.org/project/flights/) library for one-way fares.
-- Keeps only itineraries where **every leg** is flown by an airline in
-  `allowed_airlines` — Oneworld members plus AS's Earn & Redeem partners (Aer Lingus,
-  Icelandair, Korean Air) — since those are the only ones bookable through
-  alaskaair.com.
-- Computes cents-per-mile (price ÷ great-circle distance) for each result.
-- Writes qualifying results **as they're found** (not buffered to the end of the run):
-  - **Results** — anything under `record_threshold_cpm` (default 10.0¢/mi).
-  - **Best Deals** — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
-  - **Log** — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
-    and result/deal counts.
-  Controlled by `output_backend` in `settings.yaml`: `csv` (default, writes to
-  `output/*.csv`, no setup needed) or `sheets` (writes to a Google Sheet, needs
-  credentials — see Setup below).
-- Dedups against whatever's already recorded (on disk or in the Sheet, depending on
-  backend) so reruns don't re-log a fare you already know about. Delete the CSV (or
-  clear the Sheet tab) to reset and re-record everything from scratch.
-- Caches each `(route, date, filters)` search on disk for 60 minutes by default
-  (`.cache/flights/`, gitignored) — reruns within that window skip the network call
-  and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a
-  scheduled run where you always want live prices.
-- Generates two links for each result:
-  - `alaskaair.com/search/results` — see the booking-link caveat below, it's
-    not a guaranteed match to the recorded price.
-  - `google.com/travel/flights` — the same route/date on the actual source
-    Google Flights uses, so you can sanity-check `price_usd` against what
-    Google itself currently shows, independent of Alaska's own re-pricing.
-- Skips routes shorter than `min_distance_miles` (default 1900 mi) before ever
-  hitting the network, since this is meant for long-haul award value, not short hops.
-
-## How far along it is
-
-Working and runnable end-to-end for the flow above: prompt (or CLI args) → search →
-filter → dedup → write. Commit history (`git log`) shows it's been tuned against real
-runs (rate-limit pause adjusted after measuring a 1.5% failure rate at ~640 searches,
-thresholds and destination list adjusted iteratively).
-
-What exists:
-- Interactive CLI (`python -m src.scrape`) that prompts for origin airport(s) and a
-  departure date, or falls back to `config/settings.yaml` defaults — **or**
-  non-interactive CLI args (`python -m src.scrape <date> [<airports>]`) for scripting
-  or eventual scheduled runs. See Usage below.
-- ~100 pre-configured destinations spanning the US, Alaska, Hawaii, Canada, Mexico,
-  Central America, Asia, Oceania, Europe, and the Middle East/Africa — trimmed to
-  those ≥1900 mi from the configured origins.
-- Basic resilience: per-search failures are caught and logged individually rather
-  than aborting the whole run; a known `fli` quirk (alternate-airport suggestions it
-  can't map to its own enum) is swallowed as "no results" instead of crashing; a crash
-  mid-sweep only loses the search in flight, not everything found so far, since writes
-  are incremental.
-
-What's not there:
-- **No automated scheduling.** No cron job, GitHub Action, or launchd plist yet — you
-  run it by hand each time (the CLI args above exist to make that easier to automate
-  later).
-- **No linter or CI.** There's a `pytest` suite (`tests/`) but nothing runs it
-  automatically — no GitHub Action, no pre-commit hook.
-- **One-way only.** No round-trip search support.
-- **Sequential, not parallel.** Live searches run one at a time with a 2-second pause
-  between them (to avoid Google Flights rate-limiting), so a full sweep over 2
-  origins × ~100 destinations × 3 dates (~640 searches) takes ~25-30 minutes *when
-  nothing is cached*. Cached reruns skip both the network call and the pause, so
-  a same-day rerun can finish in well under a minute.
-- **Fixed destination list.** Only the origin airport(s) and date are configurable at
-  runtime; destinations always come from `config/settings.yaml`.
-- **No alerting.** Results land in `output/` (or the Sheet) and a Log row is appended;
-  there's no email/Slack/push notification when a good deal is found.
-- **Scraper-dependent.** It relies on `fli` scraping Google Flights' internal API,
-  which is unofficial and could break if Google changes that surface.
-
 ## Booking link caveat
 
 Each row includes an `alaskaair.com/search/results` link, but it's built from just
@@ -249,3 +176,77 @@ Progress prints to the console as each `(origin, destination, date)` search runs
 Each qualifying result is written immediately (to `output/*.csv` or the Sheet,
 per `output_backend`) rather than buffered to the end; a summary row is appended
 to the Log at the very end.
+
+## What it does
+
+- For every `(origin, destination, departure date)` combination, queries Google
+  Flights via the [`fli`](https://pypi.org/project/flights/) library for one-way fares.
+- Keeps only itineraries where **every leg** is flown by an airline in
+  `allowed_airlines` — Oneworld members plus AS's Earn & Redeem partners (Aer Lingus,
+  Icelandair, Korean Air) — since those are the only ones bookable through
+  alaskaair.com.
+- Computes cents-per-mile (price ÷ great-circle distance) for each result.
+- Writes qualifying results **as they're found** (not buffered to the end of the run):
+  - **Results** — anything under `record_threshold_cpm` (default 10.0¢/mi).
+  - **Best Deals** — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
+  - **Log** — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
+    and result/deal counts.
+  Controlled by `output_backend` in `settings.yaml`: `csv` (default, writes to
+  `output/*.csv`, no setup needed) or `sheets` (writes to a Google Sheet, needs
+  credentials — see Setup below).
+- Dedups against whatever's already recorded (on disk or in the Sheet, depending on
+  backend) so reruns don't re-log a fare you already know about. Delete the CSV (or
+  clear the Sheet tab) to reset and re-record everything from scratch.
+- Caches each `(route, date, filters)` search on disk for 60 minutes by default
+  (`.cache/flights/`, gitignored) — reruns within that window skip the network call
+  and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a
+  scheduled run where you always want live prices.
+- Generates two links for each result:
+  - `alaskaair.com/search/results` — see the booking-link caveat below, it's
+    not a guaranteed match to the recorded price.
+  - `google.com/travel/flights` — the same route/date on the actual source
+    Google Flights uses, so you can sanity-check `price_usd` against what
+    Google itself currently shows, independent of Alaska's own re-pricing.
+- Skips routes shorter than `min_distance_miles` (default 1900 mi) before ever
+  hitting the network, since this is meant for long-haul award value, not short hops.
+
+## How far along it is
+
+Working and runnable end-to-end for the flow above: prompt (or CLI args) → search →
+filter → dedup → write. Commit history (`git log`) shows it's been tuned against real
+runs (rate-limit pause adjusted after measuring a 1.5% failure rate at ~640 searches,
+thresholds and destination list adjusted iteratively).
+
+What exists:
+- Interactive CLI (`python -m src.scrape`) that prompts for origin airport(s) and a
+  departure date, or falls back to `config/settings.yaml` defaults — **or**
+  non-interactive CLI args (`python -m src.scrape <date> [<airports>]`) for scripting
+  or eventual scheduled runs. See Usage below.
+- ~100 pre-configured destinations spanning the US, Alaska, Hawaii, Canada, Mexico,
+  Central America, Asia, Oceania, Europe, and the Middle East/Africa — trimmed to
+  those ≥1900 mi from the configured origins.
+- Basic resilience: per-search failures are caught and logged individually rather
+  than aborting the whole run; a known `fli` quirk (alternate-airport suggestions it
+  can't map to its own enum) is swallowed as "no results" instead of crashing; a crash
+  mid-sweep only loses the search in flight, not everything found so far, since writes
+  are incremental.
+
+What's not there:
+- **No automated scheduling.** No cron job, GitHub Action, or launchd plist yet — you
+  run it by hand each time (the CLI args above exist to make that easier to automate
+  later).
+- **No linter or CI.** There's a `pytest` suite (`tests/`) but nothing runs it
+  automatically — no GitHub Action, no pre-commit hook.
+- **One-way only.** No round-trip search support.
+- **Sequential, not parallel.** Live searches run one at a time with a 2-second pause
+  between them (to avoid Google Flights rate-limiting), so a full sweep over 2
+  origins × ~100 destinations × 3 dates (~640 searches) takes ~25-30 minutes *when
+  nothing is cached*. Cached reruns skip both the network call and the pause, so
+  a same-day rerun can finish in well under a minute.
+- **Fixed destination list.** Only the origin airport(s) and date are configurable at
+  runtime; destinations always come from `config/settings.yaml`.
+- **No alerting.** Results land in `output/` (or the Sheet) and a Log row is appended;
+  there's no email/Slack/push notification when a good deal is found.
+- **Scraper-dependent.** It relies on `fli` scraping Google Flights' internal API,
+  which is unofficial and could break if Google changes that surface.
+
