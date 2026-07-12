@@ -1,10 +1,19 @@
 """Reads from and writes to the Google Sheet."""
+import re
 from datetime import datetime, timezone
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.utils import rowcol_to_a1
 
 from src.config import SERVICE_ACCOUNT_FILE, SHEET_ID
+from src.dedup import result_key
+
+# Light green -- rows where single_carrier is True rule out one failure mode
+# (Alaska combining two different partners into one ticket), lowering risk but
+# not guaranteeing bookability; see README's booking-link caveat and the
+# JFK-MEL / JFK-KUL examples.
+_PREFERRED_ROW_COLOR = {"red": 0.85, "green": 1.0, "blue": 0.85}
 
 _SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -23,9 +32,11 @@ RESULT_HEADERS = [
     "duration_minutes",
     "airline",
     "flight_numbers",
+    "single_carrier",
     "depart_time",
     "arrive_time",
     "alaska_booking_url",
+    "google_flights_url",
 ]
 LOG_HEADERS = ["timestamp_utc", "status", "message", "total_results", "total_deals"]
 
@@ -48,6 +59,56 @@ def _ensure_headers(worksheet, headers: list[str]) -> None:
         worksheet.update(range_name="A1", values=[headers])
 
 
+def existing_keys(tab_name: str) -> set[tuple]:
+    """Dedup keys already in this tab. Empty if the tab doesn't exist yet.
+
+    Uses get_all_values() (raw strings) rather than get_all_records(), since
+    the latter lets gspread infer types — which can round-trip the same price
+    as "300" instead of "300.0", silently breaking key matching.
+    """
+    sheet = _open_sheet()
+    try:
+        worksheet = sheet.worksheet(tab_name)
+    except gspread.exceptions.WorksheetNotFound:
+        return set()
+    values = worksheet.get_all_values()
+    if not values:
+        return set()
+    headers, *data_rows = values
+    return {result_key(dict(zip(headers, row))) for row in data_rows}
+
+
+def reset_results() -> None:
+    """Called once at the start of a run so the Results/Best Deals tabs reflect
+    only that run's findings, not an accumulating history across runs. Tabs
+    that don't exist yet are left alone -- gspread can't create them anyway."""
+    sheet = _open_sheet()
+    for tab_name in ("Results", "Best Deals"):
+        try:
+            worksheet = sheet.worksheet(tab_name)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+        worksheet.clear()
+
+
+def _highlight_single_carrier_rows(worksheet, append_response, rows: list[dict]) -> None:
+    """Highlight rows where single_carrier is True, in a single batched
+    .format() call covering just this append's rows."""
+    updated_range = append_response.get("updates", {}).get("updatedRange", "")
+    match = re.search(r"![A-Z]+(\d+):", updated_range)
+    if not match:
+        return
+    start_row = int(match.group(1))
+    last_col_letter = re.match(r"[A-Z]+", rowcol_to_a1(1, len(RESULT_HEADERS))).group()
+    true_ranges = [
+        f"A{start_row + i}:{last_col_letter}{start_row + i}"
+        for i, row in enumerate(rows)
+        if row.get("single_carrier")
+    ]
+    if true_ranges:
+        worksheet.format(true_ranges, {"backgroundColor": _PREFERRED_ROW_COLOR})
+
+
 def append_results(rows: list[dict], tab_name: str) -> None:
     if not rows:
         return
@@ -59,7 +120,8 @@ def append_results(rows: list[dict], tab_name: str) -> None:
         [timestamp] + [row[h] for h in RESULT_HEADERS[1:]]
         for row in rows
     ]
-    worksheet.append_rows(payload, value_input_option="USER_ENTERED")
+    response = worksheet.append_rows(payload, value_input_option="USER_ENTERED")
+    _highlight_single_carrier_rows(worksheet, response, rows)
 
 
 def append_log(status: str, message: str, total_results: int, total_deals: int) -> None:

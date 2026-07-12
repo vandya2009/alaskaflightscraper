@@ -11,20 +11,20 @@ SETTINGS_FILE = PROJECT_ROOT / "config" / "settings.yaml"
 load_dotenv(PROJECT_ROOT / ".env")
 
 
-def _required_env(name: str) -> str:
+def _optional_env(name: str) -> str | None:
     value = os.environ.get(name)
     if not value or value.startswith("paste_your_"):
-        raise RuntimeError(
-            f"Missing {name} in .env. "
-            f"Open the .env file in your project folder and fill it in."
-        )
+        return None
     return value
 
 
-SHEET_ID = _required_env("SHEET_ID")
-SERVICE_ACCOUNT_FILE = PROJECT_ROOT / _required_env("GOOGLE_APPLICATION_CREDENTIALS")
+# Only needed if you write results to Google Sheets (src/sheets.py). The default
+# CSV output (src/csv_output.py) doesn't touch either of these.
+SHEET_ID = _optional_env("SHEET_ID")
+_creds_path = _optional_env("GOOGLE_APPLICATION_CREDENTIALS")
+SERVICE_ACCOUNT_FILE = (PROJECT_ROOT / _creds_path) if _creds_path else None
 
-if not SERVICE_ACCOUNT_FILE.exists():
+if SERVICE_ACCOUNT_FILE and not SERVICE_ACCOUNT_FILE.exists():
     raise RuntimeError(
         f"Service account file not found at {SERVICE_ACCOUNT_FILE}. "
         f"Put service_account.json into the credentials/ folder."

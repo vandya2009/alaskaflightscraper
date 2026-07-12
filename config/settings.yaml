@@ -1,3 +1,8 @@
+# Where results/log rows get written: "csv" (default, no setup — writes to
+# output/*.csv) or "sheets" (writes to a Google Sheet; needs SHEET_ID and
+# GOOGLE_APPLICATION_CREDENTIALS set in .env — see README.md).
+output_backend: csv
+
 # Origin airports — each destination is searched from each origin.
 home_airports:
   - JFK
@@ -131,6 +136,10 @@ destinations:
 search_start_days: 30
 search_window_days: 1
 search_step_days: 1
+
+# When a specific date is given (interactive prompt or CLI arg), it's expanded
+# to that date +/- this many days. E.g. 1 -> 3 dates searched, 3 -> 7 dates.
+date_window_days: 1
 
 # Trip details
 adults: 1

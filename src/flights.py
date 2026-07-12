@@ -14,9 +14,19 @@ from fli.models import (
     SortBy,
     TripType,
 )
+from urllib.parse import quote
+
 from fli.search import SearchFlights
 
+from src import cache
+
 _SEARCH_CLIENT = SearchFlights()
+_last_call_cached = False
+
+
+def was_cached() -> bool:
+    """Whether the most recent search_one_way call was served from cache."""
+    return _last_call_cached
 
 _SEAT_TYPE_MAP = {
     "ECONOMY": SeatType.ECONOMY,
@@ -47,12 +57,33 @@ def _all_legs_allowed(itinerary, allowed: set[str]) -> bool:
 
 
 def _alaska_booking_url(origin: str, destination: str, depart_date: str, adults: int) -> str:
-    """One-way shop URL on alaskaair.com for the given route+date."""
+    """One-way shop URL on alaskaair.com for the given route+date.
+
+    /planbook is a legacy path (disallowed in alaskaair.com's robots.txt);
+    the live search results page is under /search/results.
+    """
     return (
-        f"https://www.alaskaair.com/planbook?A={adults}"
+        f"https://www.alaskaair.com/search/results?A={adults}"
         f"&O={origin.upper()}&D={destination.upper()}"
-        f"&OD={depart_date}&RT=false"
+        f"&OD={depart_date}&RT=false&locale=en-us"
     )
+
+
+def _google_flights_url(origin: str, destination: str, depart_date: str) -> str:
+    """Search results link on google.com/travel/flights for the same route/date —
+    lets you sanity-check price_usd against the actual source data, independent of
+    whether Alaska's own engine reproduces the same itinerary (see README's
+    booking-link caveat). URL pattern confirmed from fli's own source
+    (fli.search._booking_capture), which drives a real browser to this same URL.
+
+    "one way" is required in the query text: without it, Google Flights defaults
+    to round trip and silently picks its own return date, which roughly doubles
+    the displayed price relative to what we recorded (confirmed by decoding a
+    real generated URL's tfs= parameter — it came back with an auto-added
+    return leg neither the query nor we ever asked for).
+    """
+    query = f"Flights to {destination.upper()} from {origin.upper()} on {depart_date} one way"
+    return f"https://www.google.com/travel/flights?hl=en&curr=USD&gl=US&q={quote(query)}"
 
 
 def search_one_way(
@@ -71,6 +102,17 @@ def search_one_way(
 
     "Qualifying" = every leg is operated by a carrier in `allowed_airlines`.
     """
+    cache_key = "|".join([
+        origin.upper(), destination.upper(), depart_date,
+        seat_type.upper(), max_stops.upper(), str(adults), str(top_n),
+        str(exclude_basic_economy), ",".join(sorted(allowed_airlines)),
+    ])
+    global _last_call_cached
+    cached = cache.get(cache_key)
+    _last_call_cached = cached is not None
+    if cached is not None:
+        return cached
+
     filters = FlightSearchFilters(
         trip_type=TripType.ONE_WAY,
         passenger_info=PassengerInfo(adults=adults),
@@ -120,11 +162,20 @@ def search_one_way(
                 "flight_numbers": " > ".join(
                     f"{leg.airline.name}{leg.flight_number}" for leg in r.legs
                 ),
+                # A single carrier operating every leg rules out one failure mode
+                # (Alaska needing to combine two different partners into one
+                # interline ticket) but does NOT guarantee Alaska sells that
+                # carrier to that destination -- confirmed by a real case (pure
+                # Japan Airlines itinerary, zero equivalent on Alaska's site).
+                # Lower risk than mixed-carrier, not zero risk. See README.
+                "single_carrier": len({leg.airline.name for leg in r.legs}) == 1,
                 "depart_time": first_leg.departure_datetime.strftime("%H:%M"),
                 "arrive_time": last_leg.arrival_datetime.strftime("%H:%M"),
                 "alaska_booking_url": _alaska_booking_url(
                     origin, destination, depart_date, adults
                 ),
+                "google_flights_url": _google_flights_url(origin, destination, depart_date),
             }
         )
+    cache.set(cache_key, rows)
     return rows
