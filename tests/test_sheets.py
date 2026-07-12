@@ -1,0 +1,87 @@
+"""Tests src/sheets.py against a fake in-memory sheet, never a real Google API."""
+import gspread
+import pytest
+
+from src import sheets
+
+
+class FakeWorksheet:
+    def __init__(self):
+        self.rows: list[list[str]] = []
+
+    def row_values(self, n):
+        return self.rows[0] if self.rows else []
+
+    def update(self, range_name=None, values=None):
+        if self.rows:
+            self.rows[0] = list(values[0])
+        else:
+            self.rows = [list(values[0])]
+
+    def append_rows(self, payload, value_input_option="USER_ENTERED"):
+        for row in payload:
+            self.rows.append([str(v) for v in row])
+
+    def get_all_values(self):
+        return self.rows
+
+
+class FakeSheet:
+    def __init__(self):
+        self._tabs: dict[str, FakeWorksheet] = {}
+
+    def worksheet(self, name):
+        if name not in self._tabs:
+            raise gspread.exceptions.WorksheetNotFound(name)
+        return self._tabs[name]
+
+    def ensure(self, name):
+        return self._tabs.setdefault(name, FakeWorksheet())
+
+
+@pytest.fixture
+def fake_sheet(monkeypatch):
+    sheet = FakeSheet()
+    monkeypatch.setattr(sheets, "_open_sheet", lambda: sheet)
+    return sheet
+
+
+def test_existing_keys_empty_when_tab_missing(fake_sheet):
+    assert sheets.existing_keys("Results") == set()
+
+
+def test_append_then_existing_keys_recognizes_it(fake_sheet, sample_row):
+    fake_sheet.ensure("Results")  # tabs must pre-exist in the real Sheet; gspread won't create them
+    sheets.append_results([sample_row], tab_name="Results")
+    assert sheets.result_key(sample_row) in sheets.existing_keys("Results")
+
+
+def test_header_written_once(fake_sheet, sample_row):
+    fake_sheet.ensure("Results")
+    sheets.append_results([sample_row], tab_name="Results")
+    sheets.append_results([{**sample_row, "price_usd": 999.0}], tab_name="Results")
+
+    worksheet = fake_sheet.ensure("Results")
+    assert worksheet.rows[0] == sheets.RESULT_HEADERS
+    assert len(worksheet.rows) == 3  # header + 2 data rows
+
+
+def test_existing_keys_matches_regardless_of_trailing_zero_formatting(fake_sheet, sample_row):
+    """Regression: gspread's raw get_all_values() can come back with a price
+    like "334" (no decimal) even though we wrote 334.0 — result_key() must
+    still match it."""
+    worksheet = fake_sheet.ensure("Results")
+    worksheet.rows = [
+        sheets.RESULT_HEADERS,
+        ["2026-07-12T00:00:00+00:00", "JFK", "LAX", "2026-08-10", "2470.0", "334", "13.53",
+         "1", "507", "American Airlines", "AA475 > AA2827", "06:30", "11:57", "https://example.com"],
+    ]
+    assert sheets.result_key(sample_row) in sheets.existing_keys("Results")
+
+
+def test_append_log_writes_header_and_row(fake_sheet):
+    fake_sheet.ensure("Log")
+    sheets.append_log("OK", "All searches completed", 5, 2)
+    worksheet = fake_sheet.ensure("Log")
+    assert worksheet.rows[0] == sheets.LOG_HEADERS
+    assert worksheet.rows[1][1:] == ["OK", "All searches completed", "5", "2"]

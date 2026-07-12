@@ -21,7 +21,14 @@ Non-interactive (for scripting/scheduling — skips both prompts):
 python -m src.scrape <date> [<airports>]
 ```
 
-No test suite, linter, or build step exists in this repo.
+Run tests (`pip install -r requirements-dev.txt` first):
+```
+pytest
+```
+Run a single test file or test: `pytest tests/test_flights.py` or
+`pytest tests/test_flights.py::test_computes_cents_per_mile`.
+
+No linter or build step exists in this repo.
 
 ## Setup / secrets
 

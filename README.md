@@ -63,7 +63,8 @@ What's not there:
 - **No automated scheduling.** No cron job, GitHub Action, or launchd plist yet — you
   run it by hand each time (the CLI args above exist to make that easier to automate
   later).
-- **No tests, linter, or CI.** There is no test suite in this repo.
+- **No linter or CI.** There's a `pytest` suite (`tests/`) but nothing runs it
+  automatically — no GitHub Action, no pre-commit hook.
 - **One-way only.** No round-trip search support.
 - **Sequential, not parallel.** Live searches run one at a time with a 2-second pause
   between them (to avoid Google Flights rate-limiting), so a full sweep over 2
@@ -157,6 +158,19 @@ cost-effective despite its fragility.
 4. **`config/settings.yaml`** — tune origins, destinations, date sweep/window, seat
    type, stop limits, cents-per-mile thresholds, and the allowed-airline list. See
    the comments in that file for each option.
+
+## Testing
+
+```
+pip install -r requirements-dev.txt
+pytest
+```
+
+Runs against mocked `fli`/Google Sheets responses and an isolated temp
+cache/output dir per test — no network calls, no real credentials needed, and
+nothing touches your real `output/`, `.cache/`, or Google Sheet. Run a single
+file or test with `pytest tests/test_flights.py` or
+`pytest tests/test_flights.py::test_computes_cents_per_mile`.
 
 ## Usage
 
