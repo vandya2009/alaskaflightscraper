@@ -4,5 +4,7 @@ credentials/
 __pycache__/
 *.pyc
 logs/
+output/
+.cache/
 *.json
 !alaska_destinations.json

@@ -16,7 +16,15 @@ from fli.models import (
 )
 from fli.search import SearchFlights
 
+from src import cache
+
 _SEARCH_CLIENT = SearchFlights()
+_last_call_cached = False
+
+
+def was_cached() -> bool:
+    """Whether the most recent search_one_way call was served from cache."""
+    return _last_call_cached
 
 _SEAT_TYPE_MAP = {
     "ECONOMY": SeatType.ECONOMY,
@@ -47,11 +55,15 @@ def _all_legs_allowed(itinerary, allowed: set[str]) -> bool:
 
 
 def _alaska_booking_url(origin: str, destination: str, depart_date: str, adults: int) -> str:
-    """One-way shop URL on alaskaair.com for the given route+date."""
+    """One-way shop URL on alaskaair.com for the given route+date.
+
+    /planbook is a legacy path (disallowed in alaskaair.com's robots.txt);
+    the live search results page is under /search/results.
+    """
     return (
-        f"https://www.alaskaair.com/planbook?A={adults}"
+        f"https://www.alaskaair.com/search/results?A={adults}"
         f"&O={origin.upper()}&D={destination.upper()}"
-        f"&OD={depart_date}&RT=false"
+        f"&OD={depart_date}&RT=false&locale=en-us"
     )
 
 
@@ -71,6 +83,17 @@ def search_one_way(
 
     "Qualifying" = every leg is operated by a carrier in `allowed_airlines`.
     """
+    cache_key = "|".join([
+        origin.upper(), destination.upper(), depart_date,
+        seat_type.upper(), max_stops.upper(), str(adults), str(top_n),
+        str(exclude_basic_economy), ",".join(sorted(allowed_airlines)),
+    ])
+    global _last_call_cached
+    cached = cache.get(cache_key)
+    _last_call_cached = cached is not None
+    if cached is not None:
+        return cached
+
     filters = FlightSearchFilters(
         trip_type=TripType.ONE_WAY,
         passenger_info=PassengerInfo(adults=adults),
@@ -127,4 +150,5 @@ def search_one_way(
                 ),
             }
         )
+    cache.set(cache_key, rows)
     return rows

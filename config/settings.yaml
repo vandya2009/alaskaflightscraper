@@ -132,6 +132,10 @@ search_start_days: 30
 search_window_days: 1
 search_step_days: 1
 
+# When a specific date is given (interactive prompt or CLI arg), it's expanded
+# to that date +/- this many days. E.g. 1 -> 3 dates searched, 3 -> 7 dates.
+date_window_days: 1
+
 # Trip details
 adults: 1
 seat_type: ECONOMY            # ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST
