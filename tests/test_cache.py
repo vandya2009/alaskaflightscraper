@@ -47,3 +47,30 @@ def test_ttl_is_configurable(sample_row, monkeypatch):
     path.write_text(json.dumps(payload))
 
     assert cache.get("route-a") is None
+
+
+def test_entry_from_before_schema_versioning_existed_is_a_miss(sample_row):
+    """Regression: a real crash happened when a stale cache entry (written
+    before a new column was added to the row dict) was returned verbatim,
+    causing a KeyError in csv_output. Entries with no schema_version at all
+    (i.e. written by old code) must always be treated as a miss."""
+    import json
+    cache.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = cache._cache_path("route-a")
+    path.write_text(json.dumps({"key": "route-a", "cached_at": __import__("time").time(), "rows": [sample_row]}))
+
+    assert cache.get("route-a") is None
+
+
+def test_entry_with_mismatched_schema_version_is_a_miss(sample_row):
+    import json
+    cache.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = cache._cache_path("route-a")
+    path.write_text(json.dumps({
+        "key": "route-a",
+        "cached_at": __import__("time").time(),
+        "schema_version": cache._SCHEMA_VERSION - 1,
+        "rows": [sample_row],
+    }))
+
+    assert cache.get("route-a") is None
