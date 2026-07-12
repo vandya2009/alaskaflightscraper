@@ -84,7 +84,11 @@ Pipeline, one module per stage, wired together in `src/scrape.py`:
    the same interface: `append_results(rows, tab_name)`, `append_log(...)`,
    `existing_keys(tab_name)` (dedup keys already recorded, read from disk or the Sheet
    — used so deleting the CSV/clearing the Sheet always resets dedup regardless of
-   cache state).
+   cache state). `sheets.py` additionally highlights `single_carrier: True` rows
+   (light green background) as they're appended, using the `updatedRange` from
+   `append_rows`'s own API response to target just the newly written rows in one
+   batched `.format()` call — no extra read call needed. Has no CSV equivalent
+   (plain text can't carry cell formatting).
 7. **`src/output.py`** — picks one of the two backends above based on
    `SETTINGS["output_backend"]` and re-exports its three functions; `scrape.py` always
    imports from here, never from `csv_output`/`sheets` directly.

@@ -131,6 +131,13 @@ Practical workflow: sort by `cents_per_mile`, but weight `single_carrier: True`
 rows higher than `False` ones at a similar price point — they're worth
 checking first.
 
+**If using `output_backend: sheets`**, this is done for you visually: rows
+where `single_carrier` is `True` get their background highlighted light green
+automatically as they're written, so the more-likely-bookable rows stand out
+at a glance without needing to read the column value. (CSV output has no
+equivalent — plain text files can't carry cell formatting — so with
+`output_backend: csv` you still check the column itself.)
+
 If a result looks off, the `google_flights_url` column isolates *where* the gap
 comes from: it's the same source Google Flights query `fli` used to find the fare
 in the first place. If that link's live price roughly matches `price_usd`, the

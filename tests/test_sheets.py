@@ -1,6 +1,9 @@
 """Tests src/sheets.py against a fake in-memory sheet, never a real Google API."""
+import re
+
 import gspread
 import pytest
+from gspread.utils import rowcol_to_a1
 
 from src import sheets
 
@@ -8,6 +11,7 @@ from src import sheets
 class FakeWorksheet:
     def __init__(self):
         self.rows: list[list[str]] = []
+        self.formatted_ranges: list[tuple] = []  # (ranges, format_dict) pairs applied
 
     def row_values(self, n):
         return self.rows[0] if self.rows else []
@@ -19,8 +23,16 @@ class FakeWorksheet:
             self.rows = [list(values[0])]
 
     def append_rows(self, payload, value_input_option="USER_ENTERED"):
+        start_row = len(self.rows) + 1
         for row in payload:
             self.rows.append([str(v) for v in row])
+        end_row = len(self.rows)
+        num_cols = max((len(r) for r in payload), default=0)
+        end_col_letter = re.match(r"[A-Z]+", rowcol_to_a1(1, num_cols)).group() if num_cols else "A"
+        return {"updates": {"updatedRange": f"Sheet1!A{start_row}:{end_col_letter}{end_row}"}}
+
+    def format(self, ranges, format):
+        self.formatted_ranges.append((list(ranges) if not isinstance(ranges, str) else [ranges], format))
 
     def get_all_values(self):
         return self.rows
@@ -85,3 +97,48 @@ def test_append_log_writes_header_and_row(fake_sheet):
     worksheet = fake_sheet.ensure("Log")
     assert worksheet.rows[0] == sheets.LOG_HEADERS
     assert worksheet.rows[1][1:] == ["OK", "All searches completed", "5", "2"]
+
+
+def test_single_carrier_row_gets_highlighted(fake_sheet, sample_row):
+    worksheet = fake_sheet.ensure("Results")
+    assert sample_row["single_carrier"] is True
+    sheets.append_results([sample_row], tab_name="Results")
+
+    assert len(worksheet.formatted_ranges) == 1
+    ranges, fmt = worksheet.formatted_ranges[0]
+    assert ranges == ["A2:P2"]  # header is row 1, so the data row lands on row 2
+    assert fmt == {"backgroundColor": sheets._PREFERRED_ROW_COLOR}
+
+
+def test_non_single_carrier_row_is_not_highlighted(fake_sheet, sample_row):
+    worksheet = fake_sheet.ensure("Results")
+    mixed_carrier_row = {**sample_row, "single_carrier": False}
+    sheets.append_results([mixed_carrier_row], tab_name="Results")
+    assert worksheet.formatted_ranges == []
+
+
+def test_only_single_carrier_rows_highlighted_within_a_mixed_batch(fake_sheet, sample_row):
+    worksheet = fake_sheet.ensure("Results")
+    rows = [
+        {**sample_row, "single_carrier": True},
+        {**sample_row, "single_carrier": False},
+        {**sample_row, "single_carrier": True},
+    ]
+    sheets.append_results(rows, tab_name="Results")
+
+    assert len(worksheet.formatted_ranges) == 1
+    ranges, _ = worksheet.formatted_ranges[0]
+    # header=row1, so the 3 data rows land on 2,3,4 -- only rows 2 and 4 (True) get highlighted
+    assert ranges == ["A2:P2", "A4:P4"]
+
+
+def test_second_append_highlights_at_the_correct_row_offset(fake_sheet, sample_row):
+    """Regression: row numbers must account for rows already in the sheet
+    from a prior append, not just the current batch."""
+    worksheet = fake_sheet.ensure("Results")
+    sheets.append_results([{**sample_row, "single_carrier": False}], tab_name="Results")
+    sheets.append_results([{**sample_row, "price_usd": 999.0, "single_carrier": True}], tab_name="Results")
+
+    assert len(worksheet.formatted_ranges) == 1
+    ranges, _ = worksheet.formatted_ranges[0]
+    assert ranges == ["A3:P3"]  # header(1) + first append(2) -> second append lands on row 3

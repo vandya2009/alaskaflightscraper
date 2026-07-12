@@ -1,11 +1,18 @@
 """Reads from and writes to the Google Sheet."""
+import re
 from datetime import datetime, timezone
 
 import gspread
 from google.oauth2.service_account import Credentials
+from gspread.utils import rowcol_to_a1
 
 from src.config import SERVICE_ACCOUNT_FILE, SHEET_ID
 from src.dedup import result_key
+
+# Light green -- rows where single_carrier is True are a simpler interline
+# case and more likely to actually be bookable close to price_usd; see
+# README's booking-link caveat and the JFK-MEL example.
+_PREFERRED_ROW_COLOR = {"red": 0.85, "green": 1.0, "blue": 0.85}
 
 _SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -70,6 +77,24 @@ def existing_keys(tab_name: str) -> set[tuple]:
     return {result_key(dict(zip(headers, row))) for row in data_rows}
 
 
+def _highlight_single_carrier_rows(worksheet, append_response, rows: list[dict]) -> None:
+    """Highlight rows where single_carrier is True, in a single batched
+    .format() call covering just this append's rows."""
+    updated_range = append_response.get("updates", {}).get("updatedRange", "")
+    match = re.search(r"![A-Z]+(\d+):", updated_range)
+    if not match:
+        return
+    start_row = int(match.group(1))
+    last_col_letter = re.match(r"[A-Z]+", rowcol_to_a1(1, len(RESULT_HEADERS))).group()
+    true_ranges = [
+        f"A{start_row + i}:{last_col_letter}{start_row + i}"
+        for i, row in enumerate(rows)
+        if row.get("single_carrier")
+    ]
+    if true_ranges:
+        worksheet.format(true_ranges, {"backgroundColor": _PREFERRED_ROW_COLOR})
+
+
 def append_results(rows: list[dict], tab_name: str) -> None:
     if not rows:
         return
@@ -81,7 +106,8 @@ def append_results(rows: list[dict], tab_name: str) -> None:
         [timestamp] + [row[h] for h in RESULT_HEADERS[1:]]
         for row in rows
     ]
-    worksheet.append_rows(payload, value_input_option="USER_ENTERED")
+    response = worksheet.append_rows(payload, value_input_option="USER_ENTERED")
+    _highlight_single_carrier_rows(worksheet, response, rows)
 
 
 def append_log(status: str, message: str, total_results: int, total_deals: int) -> None:
