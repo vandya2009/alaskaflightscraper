@@ -44,9 +44,12 @@ The `single_carrier` column (True/False) flags whether every leg of the
 itinerary is operated by the same airline:
 
 - **`single_carrier: True`** — one airline handles the whole itinerary (a
-  nonstop, or a same-carrier connection like `AA475 > AA281`). This is a much
-  simpler case for Alaska to sell: it only needs *one* partner agreement, not a
-  combination. Most likely to actually be bookable close to `price_usd`.
+  nonstop, or a same-carrier connection like `AA475 > AA281`). This rules out
+  *one* failure mode (Alaska needing to combine two different partners into one
+  interline ticket), but **does not guarantee Alaska sells that carrier to that
+  destination at all** — see the JFK-KUL example below, where a pure
+  single-carrier Japan Airlines itinerary still had zero equivalent on Alaska's
+  site. Lower risk than `False`, not zero risk.
 - **`single_carrier: False`** — legs split across different airlines (e.g.
   `AA475 > AA2827 > QF94`: American domestic + Qantas international). This is
   the exact pattern that failed in the JFK-MEL example — Alaska's engine had
@@ -54,9 +57,19 @@ itinerary is operated by the same airline:
   unverified until you actually check them, even though they often show the
   best cents-per-mile numbers (long-haul routes inflate the ratio).
 
-Practical workflow: sort by `cents_per_mile`, but weight `single_carrier: True`
-rows higher than `False` ones at a similar price point — they're worth
-checking first.
+**Second real example**: a JFK→KUL (Kuala Lumpur) row showed $644 on Japan
+Airlines (`JL5 > JL723`, both legs JAL — `single_carrier: True`). Alaska's own
+search for that route/date came back with 27 results, sorted by stops — all
+Qatar Airways (via Doha, cheapest **$1,326**, almost exactly double) or Cathay
+Pacific (via Hong Kong, $4,388+, one combined with Malaysia Airlines). Zero
+Japan Airlines options at all. So the real driver isn't single- vs.
+mixed-carrier — it's whether Alaska's engine has interline coverage loaded for
+*that specific carrier to that specific destination*, which varies even for a
+single, genuine Oneworld partner like JAL.
+
+Practical workflow: sort by `cents_per_mile`, and treat `single_carrier: True`
+as a *weaker* prior toward bookability than `False` — worth checking first,
+but not a substitute for actually checking.
 
 **If using `output_backend: sheets`**, this is done for you visually: rows
 where `single_carrier` is `True` get their background highlighted light green

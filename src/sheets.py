@@ -9,9 +9,10 @@ from gspread.utils import rowcol_to_a1
 from src.config import SERVICE_ACCOUNT_FILE, SHEET_ID
 from src.dedup import result_key
 
-# Light green -- rows where single_carrier is True are a simpler interline
-# case and more likely to actually be bookable close to price_usd; see
-# README's booking-link caveat and the JFK-MEL example.
+# Light green -- rows where single_carrier is True rule out one failure mode
+# (Alaska combining two different partners into one ticket), lowering risk but
+# not guaranteeing bookability; see README's booking-link caveat and the
+# JFK-MEL / JFK-KUL examples.
 _PREFERRED_ROW_COLOR = {"red": 0.85, "green": 1.0, "blue": 0.85}
 
 _SCOPES = [

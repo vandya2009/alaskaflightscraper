@@ -162,11 +162,12 @@ def search_one_way(
                 "flight_numbers": " > ".join(
                     f"{leg.airline.name}{leg.flight_number}" for leg in r.legs
                 ),
-                # A single carrier operating every leg is a much simpler interline
-                # case for Alaska to actually sell than a multi-partner combination
-                # (e.g. American domestic + Qantas international) -- confirmed by a
-                # real case where Alaska's engine offered zero options for such a
-                # combination at all. See the README's booking-link caveat.
+                # A single carrier operating every leg rules out one failure mode
+                # (Alaska needing to combine two different partners into one
+                # interline ticket) but does NOT guarantee Alaska sells that
+                # carrier to that destination -- confirmed by a real case (pure
+                # Japan Airlines itinerary, zero equivalent on Alaska's site).
+                # Lower risk than mixed-carrier, not zero risk. See README.
                 "single_carrier": len({leg.airline.name for leg in r.legs}) == 1,
                 "depart_time": first_leg.departure_datetime.strftime("%H:%M"),
                 "arrive_time": last_leg.arrival_datetime.strftime("%H:%M"),

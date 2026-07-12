@@ -65,9 +65,11 @@ Pipeline, one module per stage, wired together in `src/scrape.py`:
    operated by a carrier in `allowed_airlines` (an itinerary with even one disallowed
    connecting leg is dropped entirely), computes cents-per-mile against the route's
    precomputed distance, flags `single_carrier` (whether every leg shares one
-   airline — a mixed-carrier itinerary like American+Qantas is confirmed, via a
-   real case, to sometimes have zero equivalent option on Alaska's own engine at
-   all; see README's booking-link caveat), and builds two links for each result: an
+   airline — rules out one failure mode (Alaska combining two different
+   partners into one interline ticket) but not a guarantee of bookability:
+   confirmed by two real cases (American+Qantas, and a *pure single-carrier*
+   Japan Airlines itinerary) both having zero equivalent option on Alaska's own
+   engine; see README's booking-link caveat), and builds two links for each result: an
    `alaskaair.com/search/results` link (a generic route/date search — not a deep
    link to that specific itinerary; see the booking-link caveat in README.md) and
    a `google.com/travel/flights` link (the same route/date on the actual source
