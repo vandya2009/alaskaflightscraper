@@ -78,6 +78,19 @@ def existing_keys(tab_name: str) -> set[tuple]:
     return {result_key(dict(zip(headers, row))) for row in data_rows}
 
 
+def reset_results() -> None:
+    """Called once at the start of a run so the Results/Best Deals tabs reflect
+    only that run's findings, not an accumulating history across runs. Tabs
+    that don't exist yet are left alone -- gspread can't create them anyway."""
+    sheet = _open_sheet()
+    for tab_name in ("Results", "Best Deals"):
+        try:
+            worksheet = sheet.worksheet(tab_name)
+        except gspread.exceptions.WorksheetNotFound:
+            continue
+        worksheet.clear()
+
+
 def _highlight_single_carrier_rows(worksheet, append_response, rows: list[dict]) -> None:
     """Highlight rows where single_carrier is True, in a single batched
     .format() call covering just this append's rows."""

@@ -33,6 +33,7 @@ def test_bad_airport_code_is_caught_logged_and_run_continues(monkeypatch):
     monkeypatch.setattr(scrape, "planned_searches", lambda **kwargs: iter(plans))
     monkeypatch.setattr(scrape, "existing_keys", lambda tab_name: set())
     monkeypatch.setattr(scrape, "append_results", lambda rows, tab_name: None)
+    monkeypatch.setattr(scrape, "reset_results", lambda: None)
     monkeypatch.setattr(scrape, "was_cached", lambda: False)
     monkeypatch.setattr(scrape.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(scrape.sys, "argv", ["scrape.py", _future_date(), "JFK"])
@@ -72,6 +73,7 @@ def test_planned_searches_failure_is_not_caught_by_scrape_main(monkeypatch):
         raise ValueError("Unknown airport code in airportsdata: ZZZ")
 
     monkeypatch.setattr(scrape, "planned_searches", boom)
+    monkeypatch.setattr(scrape, "reset_results", lambda: None)
     monkeypatch.setattr(scrape.sys, "argv", ["scrape.py", _future_date(), "JFK"])
 
     import pytest

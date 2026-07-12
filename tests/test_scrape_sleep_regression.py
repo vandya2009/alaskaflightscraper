@@ -26,7 +26,25 @@ def _wire_common_mocks(monkeypatch, plans):
     monkeypatch.setattr(scrape, "existing_keys", lambda tab_name: set())
     monkeypatch.setattr(scrape, "append_results", lambda rows, tab_name: None)
     monkeypatch.setattr(scrape, "append_log", lambda *a, **k: None)
+    monkeypatch.setattr(scrape, "reset_results", lambda: None)
     monkeypatch.setattr(scrape.sys, "argv", ["scrape.py", _future_date(), "JFK"])
+
+
+def test_reset_results_is_called_before_the_sweep_starts(monkeypatch):
+    """Each run reflects only its own findings, not an accumulating history --
+    reset_results() must run before any results get written."""
+    plans = [_plan(1)]
+    _wire_common_mocks(monkeypatch, plans)
+    monkeypatch.setattr(scrape, "search_one_way", lambda **kwargs: [])
+    monkeypatch.setattr(scrape, "was_cached", lambda: False)
+    monkeypatch.setattr(scrape.time, "sleep", lambda seconds: None)
+
+    calls = []
+    monkeypatch.setattr(scrape, "reset_results", lambda: calls.append("reset"))
+
+    scrape.main()
+
+    assert calls == ["reset"]
 
 
 def test_sleep_fires_even_when_no_rows_found(monkeypatch):

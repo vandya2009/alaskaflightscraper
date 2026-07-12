@@ -47,3 +47,26 @@ def test_different_tabs_write_different_files(sample_row):
     csv_output.append_results([sample_row], tab_name="Best Deals")
     assert (csv_output.OUTPUT_DIR / "results.csv").exists()
     assert (csv_output.OUTPUT_DIR / "best_deals.csv").exists()
+
+
+def test_reset_results_removes_both_files(sample_row):
+    csv_output.append_results([sample_row], tab_name="Results")
+    csv_output.append_results([sample_row], tab_name="Best Deals")
+
+    csv_output.reset_results()
+
+    assert not (csv_output.OUTPUT_DIR / "results.csv").exists()
+    assert not (csv_output.OUTPUT_DIR / "best_deals.csv").exists()
+
+
+def test_reset_results_is_a_noop_when_files_dont_exist():
+    csv_output.reset_results()  # must not raise
+
+
+def test_reset_then_append_starts_fresh_with_new_header(sample_row):
+    csv_output.append_results([sample_row], tab_name="Results")
+    csv_output.reset_results()
+    csv_output.append_results([sample_row], tab_name="Results")
+
+    lines = (csv_output.OUTPUT_DIR / "results.csv").read_text().splitlines()
+    assert len(lines) == 2  # header + exactly 1 data row, not 2

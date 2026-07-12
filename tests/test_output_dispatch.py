@@ -24,6 +24,7 @@ def test_default_backend_is_csv():
     reloaded = _reload_output()
     assert reloaded._impl is csv_output
     assert reloaded.append_results is csv_output.append_results
+    assert reloaded.reset_results is csv_output.reset_results
 
 
 def test_sheets_backend_without_credentials_raises_clearly():
@@ -48,3 +49,4 @@ def test_sheets_backend_works_once_credentials_present(monkeypatch):
     reloaded = _reload_output()
     assert reloaded._impl is sheets
     assert reloaded.append_results is sheets.append_results
+    assert reloaded.reset_results is sheets.reset_results

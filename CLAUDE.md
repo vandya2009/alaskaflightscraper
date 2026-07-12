@@ -84,20 +84,22 @@ Pipeline, one module per stage, wired together in `src/scrape.py`:
    and Sheets round-trip the same float differently (`"300.0"` vs `"300"`).
 6. **`src/csv_output.py`** / **`src/sheets.py`** — the two output backends. Both expose
    the same interface: `append_results(rows, tab_name)`, `append_log(...)`,
-   `existing_keys(tab_name)` (dedup keys already recorded, read from disk or the Sheet
-   — used so deleting the CSV/clearing the Sheet always resets dedup regardless of
-   cache state). `sheets.py` additionally highlights `single_carrier: True` rows
+   `existing_keys(tab_name)` (dedup keys currently recorded — mainly a within-run
+   safety net now, see `reset_results()` below), `reset_results()` (called once at
+   the start of a run so `Results`/`Best Deals` reflect only that run's findings,
+   not an accumulating history across runs — `Log` is untouched and still
+   accumulates). `sheets.py` additionally highlights `single_carrier: True` rows
    (light green background) as they're appended, using the `updatedRange` from
    `append_rows`'s own API response to target just the newly written rows in one
    batched `.format()` call — no extra read call needed. Has no CSV equivalent
    (plain text can't carry cell formatting).
 7. **`src/output.py`** — picks one of the two backends above based on
-   `SETTINGS["output_backend"]` and re-exports its three functions; `scrape.py` always
+   `SETTINGS["output_backend"]` and re-exports its four functions; `scrape.py` always
    imports from here, never from `csv_output`/`sheets` directly.
-8. **`src/scrape.py`** (`main`) — parses CLI args or runs the interactive prompts,
-   builds the plan list, and for each plan calls `search_one_way`, filters by
-   `record_threshold_cpm` (→ `Results`) and `deal_threshold_cpm` (also → `Best Deals`),
-   dedups against `existing_keys()` before writing, writes each qualifying result
+8. **`src/scrape.py`** (`main`) — calls `reset_results()` first, then parses CLI args
+   or runs the interactive prompts, builds the plan list, and for each plan calls
+   `search_one_way`, filters by `record_threshold_cpm` (→ `Results`) and
+   `deal_threshold_cpm` (also → `Best Deals`), writes each qualifying result
    immediately (not buffered to the end — a crash mid-sweep only loses the search in
    flight), sleeps 2.0s between *live* searches only (skipped on cache hits) to avoid
    Google Flights rate-limiting, and appends a summary row to the Log at the end.

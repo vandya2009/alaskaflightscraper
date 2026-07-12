@@ -37,6 +37,10 @@ class FakeWorksheet:
     def get_all_values(self):
         return self.rows
 
+    def clear(self):
+        self.rows = []
+        self.formatted_ranges = []
+
 
 class FakeSheet:
     def __init__(self):
@@ -60,6 +64,24 @@ def fake_sheet(monkeypatch):
 
 def test_existing_keys_empty_when_tab_missing(fake_sheet):
     assert sheets.existing_keys("Results") == set()
+
+
+def test_reset_results_clears_both_existing_tabs(fake_sheet, sample_row):
+    results_ws = fake_sheet.ensure("Results")
+    deals_ws = fake_sheet.ensure("Best Deals")
+    sheets.append_results([sample_row], tab_name="Results")
+    sheets.append_results([sample_row], tab_name="Best Deals")
+    assert results_ws.rows and deals_ws.rows
+
+    sheets.reset_results()
+
+    assert results_ws.rows == []
+    assert deals_ws.rows == []
+
+
+def test_reset_results_is_a_noop_when_tabs_dont_exist(fake_sheet):
+    sheets.reset_results()  # must not raise, even though neither tab was created
+    assert fake_sheet._tabs == {}
 
 
 def test_append_then_existing_keys_recognizes_it(fake_sheet, sample_row):

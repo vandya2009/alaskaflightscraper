@@ -27,3 +27,4 @@ else:
 append_results = _impl.append_results
 append_log = _impl.append_log
 existing_keys = _impl.existing_keys
+reset_results = _impl.reset_results

@@ -27,7 +27,7 @@ from fli.models import Airport
 from src.config import SETTINGS
 from src.flights import search_one_way, was_cached
 from src.routes import planned_searches
-from src.output import append_log, append_results, existing_keys
+from src.output import append_log, append_results, existing_keys, reset_results
 from src.dedup import result_key
 
 _AIRPORTS = airportsdata.load("IATA")
@@ -107,6 +107,10 @@ def _prompt_for_date() -> list[str] | None:
 
 
 def main() -> None:
+    # Each run reflects only its own findings, not an accumulating history
+    # across runs -- results.csv/best_deals.csv (or the Sheet tabs) are reset here.
+    reset_results()
+
     if len(sys.argv) > 1:
         date_arg = sys.argv[1]
         airports_arg = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -145,8 +149,9 @@ def main() -> None:
     total_results = 0
     total_deals = 0
     errors: list[str] = []
-    # Dedup against what's actually on disk, not against the search cache, so
-    # deleting output/results.csv always resets recording regardless of cache state.
+    # reset_results() above means this is always empty at this point -- kept as
+    # a within-run safety net in case the exact same (route, date, price) ever
+    # turns up twice in one sweep, rather than assuming that can't happen.
     seen_results = existing_keys("Results")
 
     plans = list(

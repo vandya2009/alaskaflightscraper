@@ -244,9 +244,10 @@ to the Log at the very end.
   Controlled by `output_backend` in `settings.yaml`: `csv` (default, writes to
   `output/*.csv`, no setup needed) or `sheets` (writes to a Google Sheet, needs
   credentials — see Setup below).
-- Dedups against whatever's already recorded (on disk or in the Sheet, depending on
-  backend) so reruns don't re-log a fare you already know about. Delete the CSV (or
-  clear the Sheet tab) to reset and re-record everything from scratch.
+- **Each run starts fresh**: `results.csv`/`best_deals.csv` (or the equivalent
+  Sheet tabs) are reset at the start of every run, so they reflect only that
+  run's findings — not an accumulating history across runs. (`log.csv`/the Log
+  tab is a separate run-history log and still accumulates, by design.)
 - Caches each `(route, date, filters)` search on disk for 60 minutes by default
   (`.cache/flights/`, gitignored) — reruns within that window skip the network call
   and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a
