@@ -96,6 +96,15 @@ it is not a deep link to the specific itinerary the row records. Two things foll
    engine can even reconstruct that same routing/fare — interline ticketing coverage
    varies by partner and route. The link can show a completely different flight.
 
+**Real example hit while using this tool**: a recorded JFK→MEL (Melbourne) row
+showed $625 on American Airlines. Alaska's own search for that exact route/date
+came back with 11 results — none of them American Airlines. All were Qatar
+Airways (via Doha), Qantas (via LAX/SFO), or Cathay Pacific (via Hong Kong),
+cheapest at $1,434. So this wasn't Alaska charging more for the same flight —
+Alaska's interline coverage doesn't include that specific AA-marketed routing
+for this city pair at all, so its engine falls back to pricier alternatives via
+other partners.
+
 With ~50+ rows per full sweep, hand-checking every link isn't practical. Treat
 `results.csv` as a price-discovery signal ("cents-per-mile was this good, on this
 route, around this time"), not a guaranteed bookable quote — always re-verify before
