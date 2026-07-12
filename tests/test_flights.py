@@ -64,6 +64,17 @@ def test_filters_out_itinerary_with_any_disallowed_leg(monkeypatch, one_leg_aa, 
     assert rows[0]["airline"] == "American Airlines"
 
 
+def test_google_flights_url_is_a_real_search_link(monkeypatch, one_leg_aa):
+    """Format confirmed from fli's own source (_booking_capture.py), which
+    drives a real browser to this same URL for its Playwright-based booking
+    flow -- not a guess, unlike the Alaska /planbook URL bug we hit earlier."""
+    monkeypatch.setattr(flights._SEARCH_CLIENT, "search", lambda filters: [one_leg_aa])
+    rows = flights.search_one_way(**_search_kwargs(origin="jfk", destination="lax", depart_date="2026-08-10"))
+    url = rows[0]["google_flights_url"]
+    assert url.startswith("https://www.google.com/travel/flights?")
+    assert "q=Flights%20to%20LAX%20from%20JFK%20on%202026-08-10" in url
+
+
 def test_computes_cents_per_mile(monkeypatch, one_leg_aa):
     monkeypatch.setattr(flights._SEARCH_CLIENT, "search", lambda filters: [one_leg_aa])
     rows = flights.search_one_way(**_search_kwargs(distance_miles=2470.0))

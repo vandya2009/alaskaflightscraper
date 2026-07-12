@@ -27,6 +27,7 @@ RESULT_HEADERS = [
     "depart_time",
     "arrive_time",
     "alaska_booking_url",
+    "google_flights_url",
 ]
 LOG_HEADERS = ["timestamp_utc", "status", "message", "total_results", "total_deals"]
 

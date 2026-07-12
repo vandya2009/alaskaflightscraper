@@ -27,4 +27,5 @@ def sample_row():
         "depart_time": "06:30",
         "arrive_time": "11:57",
         "alaska_booking_url": "https://www.alaskaair.com/search/results?A=1&O=JFK&D=LAX&OD=2026-08-10&RT=false&locale=en-us",
+        "google_flights_url": "https://www.google.com/travel/flights?hl=en&curr=USD&gl=US&q=Flights%20to%20LAX%20from%20JFK%20on%202026-08-10",
     }

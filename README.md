@@ -33,8 +33,12 @@ files (default) or a Google Sheet (optional).
   (`.cache/flights/`, gitignored) — reruns within that window skip the network call
   and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a
   scheduled run where you always want live prices.
-- Generates an `alaskaair.com/search/results` link for each result (see the
-  booking-link caveat below — it's not a guaranteed match).
+- Generates two links for each result:
+  - `alaskaair.com/search/results` — see the booking-link caveat below, it's
+    not a guaranteed match to the recorded price.
+  - `google.com/travel/flights` — the same route/date on the actual source
+    Google Flights uses, so you can sanity-check `price_usd` against what
+    Google itself currently shows, independent of Alaska's own re-pricing.
 - Skips routes shorter than `min_distance_miles` (default 1900 mi) before ever
   hitting the network, since this is meant for long-haul award value, not short hops.
 
@@ -96,6 +100,13 @@ With ~50+ rows per full sweep, hand-checking every link isn't practical. Treat
 `results.csv` as a price-discovery signal ("cents-per-mile was this good, on this
 route, around this time"), not a guaranteed bookable quote — always re-verify before
 booking.
+
+If a result looks off, the `google_flights_url` column isolates *where* the gap
+comes from: it's the same source Google Flights query `fli` used to find the fare
+in the first place. If that link's live price roughly matches `price_usd`, the
+tool's data is accurate and the whole gap is Alaska independently re-pricing the
+itinerary (expected, structural, not fixable here). If even *that* doesn't match,
+something's actually wrong with the price capture — worth reporting as a bug.
 
 ### Could a commercial API do better?
 

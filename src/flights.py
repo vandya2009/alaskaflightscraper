@@ -14,6 +14,8 @@ from fli.models import (
     SortBy,
     TripType,
 )
+from urllib.parse import quote
+
 from fli.search import SearchFlights
 
 from src import cache
@@ -65,6 +67,17 @@ def _alaska_booking_url(origin: str, destination: str, depart_date: str, adults:
         f"&O={origin.upper()}&D={destination.upper()}"
         f"&OD={depart_date}&RT=false&locale=en-us"
     )
+
+
+def _google_flights_url(origin: str, destination: str, depart_date: str) -> str:
+    """Search results link on google.com/travel/flights for the same route/date —
+    lets you sanity-check price_usd against the actual source data, independent of
+    whether Alaska's own engine reproduces the same itinerary (see README's
+    booking-link caveat). URL pattern confirmed from fli's own source
+    (fli.search._booking_capture), which drives a real browser to this same URL.
+    """
+    query = f"Flights to {destination.upper()} from {origin.upper()} on {depart_date}"
+    return f"https://www.google.com/travel/flights?hl=en&curr=USD&gl=US&q={quote(query)}"
 
 
 def search_one_way(
@@ -148,6 +161,7 @@ def search_one_way(
                 "alaska_booking_url": _alaska_booking_url(
                     origin, destination, depart_date, adults
                 ),
+                "google_flights_url": _google_flights_url(origin, destination, depart_date),
             }
         )
     cache.set(cache_key, rows)
