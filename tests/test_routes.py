@@ -1,3 +1,5 @@
+import pytest
+
 from src.config import SETTINGS
 from src.routes import planned_searches
 
@@ -54,6 +56,28 @@ def test_falls_back_to_home_airports_when_no_override(monkeypatch):
 
     origins = {p["origin"] for p in plans}
     assert origins == {"SEA"}
+
+
+def test_unknown_destination_raises_before_any_search_runs(monkeypatch):
+    """A destination airportsdata doesn't recognize blows up the whole plan
+    list immediately (not caught anywhere) -- this happens before scrape.py
+    has even printed "Running N flight searches...", let alone started one.
+    Contrast with test_flights.py's version of this: a code airportsdata
+    knows but fli's smaller Airport enum doesn't, which *is* caught -- but
+    only once per-search, inside scrape.py's loop, not here."""
+    monkeypatch.setitem(SETTINGS, "destinations", ["ZZZ"])
+    monkeypatch.setitem(SETTINGS, "min_distance_miles", 0)
+
+    with pytest.raises(ValueError, match="Unknown airport code in airportsdata"):
+        list(planned_searches(dates_override=["2026-08-10"], origins_override=["JFK"]))
+
+
+def test_unknown_origin_raises_before_any_search_runs(monkeypatch):
+    monkeypatch.setitem(SETTINGS, "destinations", ["LAX"])
+    monkeypatch.setitem(SETTINGS, "min_distance_miles", 0)
+
+    with pytest.raises(ValueError, match="Unknown airport code in airportsdata"):
+        list(planned_searches(dates_override=["2026-08-10"], origins_override=["ZZZ"]))
 
 
 def test_distance_miles_matches_known_great_circle_value(monkeypatch):

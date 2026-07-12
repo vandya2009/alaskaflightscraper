@@ -125,3 +125,25 @@ def test_different_params_are_not_cached_together(monkeypatch, one_leg_aa):
     flights.search_one_way(**_search_kwargs(destination="LAX"))
     flights.search_one_way(**_search_kwargs(destination="SEA"))
     assert flights.was_cached() is False  # second call, different route, still a miss
+
+
+def test_unknown_airport_code_raises_valueerror():
+    with pytest.raises(ValueError, match="Unknown airport code 'ZZZ'"):
+        flights._airport("ZZZ")
+
+
+def test_unknown_airport_code_propagates_uncaught_from_search_one_way(monkeypatch):
+    """Contrast with the 'has no attribute' fli quirk (swallowed as []
+    inside search_one_way's own try/except): an unknown airport code raises
+    before the network call even happens, from _airport() building the
+    filters -- outside that try/except entirely. It is NOT caught here; it's
+    only caught one level up, by scrape.py's per-search try/except."""
+    search_was_called = []
+    monkeypatch.setattr(
+        flights._SEARCH_CLIENT, "search", lambda filters: search_was_called.append(1)
+    )
+
+    with pytest.raises(ValueError, match="Unknown airport code 'ZZZ'"):
+        flights.search_one_way(**_search_kwargs(origin="ZZZ"))
+
+    assert not search_was_called  # never got as far as the network call
