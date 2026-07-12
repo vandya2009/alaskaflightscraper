@@ -112,6 +112,43 @@ recurring cost, and only meaningfully improves — not fully solves — the book
 problem. For occasional/manual runs, the current free scraping approach is more
 cost-effective despite its fragility.
 
+### When should we revisit this?
+
+Don't switch preemptively — `fli` has been reliable in practice (see below). Revisit
+the SerpApi-or-similar decision when one of these actually happens, not before:
+
+- **`log.csv` starts showing `PARTIAL` runs regularly**, not as a one-off. One bad run
+  can be a transient network blip; a pattern across several runs means `fli` is
+  hitting something it can't recover from — check the `message` column and the
+  console's `Failed: ...` lines for what's actually erroring.
+- **The failure rate climbs well above the historical baseline.** Commit history
+  found ~1.5% of searches failing at an overly aggressive 1.5s pause, which is why
+  it's 2.0s now. If failures start showing up meaningfully above that *even at the
+  current pace*, something changed on Google's end, not just bad luck.
+- **A crash outside the two quirks the code already handles** (the "has no
+  attribute" alternate-airport exception, and stale cache entries — both now
+  covered by regression tests). A new, different exception type surfacing
+  repeatedly means Google changed something structurally and `fli` hasn't caught up.
+- **`fli` itself goes quiet.** It's a small, community-maintained scraper reverse-
+  engineering Google's internal API — check
+  [its GitHub repo](https://github.com/punitarani/fli) for recent commits/releases
+  if searches start failing. An unmaintained scraper against a moving target
+  (Google) only gets more broken over time, not less.
+- **Usage pattern actually changes** — e.g. moving to the planned scheduled
+  GitHub Action running daily, or widening from a 3-date window to the 60-day
+  window discussed earlier. Both multiply request volume, which raises both the
+  rate-limit risk *and* the cost-effectiveness case for a paid, stable API (see
+  the cost math above — it scales with frequency × destinations × dates).
+- **You actually need the booking-link fix**, not just the cents-per-mile signal —
+  i.e. if the current "sort by `single_carrier`, then verify manually" workflow
+  stops being good enough for how you're using this. SerpApi's `booking_token`
+  flow is a real (if imperfect) improvement there; the scraping-reliability
+  argument alone isn't, on its own, worth the cost for occasional manual runs.
+
+What to check first, in order: `output/log.csv` status column → console `Failed:`
+messages for the actual error → `fli`'s release history for known issues — before
+concluding a switch is needed.
+
 ## Setup
 
 1. **Python dependencies**
