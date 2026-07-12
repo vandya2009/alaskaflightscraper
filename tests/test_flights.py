@@ -43,13 +43,29 @@ def two_leg_mixed_disallowed():
     )
 
 
+@pytest.fixture
+def two_leg_mixed_allowed():
+    """AA domestic leg + QF international leg -- both allowed carriers, so it
+    qualifies, but it's the exact pattern confirmed (via a real Alaska search)
+    to sometimes have zero equivalent option on Alaska's own engine at all."""
+    return _itinerary(
+        legs=[
+            _leg("AA", "American Airlines", "100", datetime(2026, 8, 10, 6, 0), datetime(2026, 8, 10, 9, 0)),
+            _leg("QF", "Qantas", "94", datetime(2026, 8, 10, 10, 0), datetime(2026, 8, 11, 6, 45)),
+        ],
+        price=900.0,
+        stops=1,
+        duration=1245,
+    )
+
+
 def _search_kwargs(**overrides):
     kwargs = dict(
         origin="JFK",
         destination="LAX",
         depart_date="2026-08-10",
         distance_miles=2470.0,
-        allowed_airlines={"AA", "AS"},
+        allowed_airlines={"AA", "AS", "QF"},
     )
     kwargs.update(overrides)
     return kwargs
@@ -62,6 +78,21 @@ def test_filters_out_itinerary_with_any_disallowed_leg(monkeypatch, one_leg_aa, 
     rows = flights.search_one_way(**_search_kwargs(top_n=5))
     assert len(rows) == 1
     assert rows[0]["airline"] == "American Airlines"
+
+
+def test_single_carrier_true_when_all_legs_same_airline(monkeypatch, one_leg_aa):
+    monkeypatch.setattr(flights._SEARCH_CLIENT, "search", lambda filters: [one_leg_aa])
+    rows = flights.search_one_way(**_search_kwargs())
+    assert rows[0]["single_carrier"] is True
+
+
+def test_single_carrier_false_when_legs_span_multiple_airlines(monkeypatch, two_leg_mixed_allowed):
+    """Both legs are individually allowed (so the itinerary qualifies), but
+    they're different carriers -- exactly the AA+QF pattern confirmed via a
+    real Alaska search to sometimes have no equivalent option at all."""
+    monkeypatch.setattr(flights._SEARCH_CLIENT, "search", lambda filters: [two_leg_mixed_allowed])
+    rows = flights.search_one_way(**_search_kwargs())
+    assert rows[0]["single_carrier"] is False
 
 
 def test_google_flights_url_is_a_real_search_link(monkeypatch, one_leg_aa):

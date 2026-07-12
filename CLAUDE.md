@@ -64,14 +64,17 @@ Pipeline, one module per stage, wired together in `src/scrape.py`:
    one Google Flights query via `fli`, keeps only itineraries where **every leg** is
    operated by a carrier in `allowed_airlines` (an itinerary with even one disallowed
    connecting leg is dropped entirely), computes cents-per-mile against the route's
-   precomputed distance, and builds two links for each result: an
+   precomputed distance, flags `single_carrier` (whether every leg shares one
+   airline — a mixed-carrier itinerary like American+Qantas is confirmed, via a
+   real case, to sometimes have zero equivalent option on Alaska's own engine at
+   all; see README's booking-link caveat), and builds two links for each result: an
    `alaskaair.com/search/results` link (a generic route/date search — not a deep
    link to that specific itinerary; see the booking-link caveat in README.md) and
    a `google.com/travel/flights` link (the same route/date on the actual source
-   `fli` queried — lets you isolate whether a price mismatch is Alaska
-   re-pricing independently, vs. an actual bug in price capture; URL format
-   confirmed from `fli`'s own `_booking_capture.py`, not guessed). A `fli` quirk
-   where unmappable alternate-airport suggestions raise `"has no attribute"` is
+   `fli` queried, with an explicit "one way" in the query text — omitting it
+   silently defaults to round trip and roughly doubles the shown price, a real bug
+   found and fixed here). A `fli` quirk where unmappable alternate-airport
+   suggestions raise `"has no attribute"` is
    treated as zero results rather than a hard failure.
 5. **`src/dedup.py`** (`result_key`) — the tuple key (origin, destination, date,
    price, flight numbers) used by both output backends to recognize an

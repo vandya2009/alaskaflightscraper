@@ -110,6 +110,27 @@ With ~50+ rows per full sweep, hand-checking every link isn't practical. Treat
 route, around this time"), not a guaranteed bookable quote — always re-verify before
 booking.
 
+### Which rows are actually worth checking?
+
+Not all rows carry the same risk of turning out like the JFK-MEL example above.
+The `single_carrier` column (True/False) flags whether every leg of the
+itinerary is operated by the same airline:
+
+- **`single_carrier: True`** — one airline handles the whole itinerary (a
+  nonstop, or a same-carrier connection like `AA475 > AA281`). This is a much
+  simpler case for Alaska to sell: it only needs *one* partner agreement, not a
+  combination. Most likely to actually be bookable close to `price_usd`.
+- **`single_carrier: False`** — legs split across different airlines (e.g.
+  `AA475 > AA2827 > QF94`: American domestic + Qantas international). This is
+  the exact pattern that failed in the JFK-MEL example — Alaska's engine had
+  zero equivalent options, not just a different price. Treat these as
+  unverified until you actually check them, even though they often show the
+  best cents-per-mile numbers (long-haul routes inflate the ratio).
+
+Practical workflow: sort by `cents_per_mile`, but weight `single_carrier: True`
+rows higher than `False` ones at a similar price point — they're worth
+checking first.
+
 If a result looks off, the `google_flights_url` column isolates *where* the gap
 comes from: it's the same source Google Flights query `fli` used to find the fare
 in the first place. If that link's live price roughly matches `price_usd`, the

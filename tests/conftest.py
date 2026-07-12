@@ -24,6 +24,7 @@ def sample_row():
         "duration_minutes": 507,
         "airline": "American Airlines",
         "flight_numbers": "AA475 > AA2827",
+        "single_carrier": True,
         "depart_time": "06:30",
         "arrive_time": "11:57",
         "alaska_booking_url": "https://www.alaskaair.com/search/results?A=1&O=JFK&D=LAX&OD=2026-08-10&RT=false&locale=en-us",

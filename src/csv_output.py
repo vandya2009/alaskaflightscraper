@@ -20,6 +20,7 @@ RESULT_HEADERS = [
     "duration_minutes",
     "airline",
     "flight_numbers",
+    "single_carrier",
     "depart_time",
     "arrive_time",
     "alaska_booking_url",
