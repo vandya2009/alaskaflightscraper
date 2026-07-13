@@ -67,16 +67,19 @@ mixed-carrier — it's whether Alaska's engine has interline coverage loaded for
 *that specific carrier to that specific destination*, which varies even for a
 single, genuine Oneworld partner like JAL.
 
-Practical workflow: sort by `cents_per_mile`, and treat `single_carrier: True`
-as a *weaker* prior toward bookability than `False` — worth checking first,
-but not a substitute for actually checking.
+This split is now automated by `is_likely_bookable` (`src/bookability.py`):
+`single_carrier: False` rows are written to a separate `Wrong Carrier`
+tab/file instead of `Results`, and specific confirmed-bad single-carrier
+itineraries (like the JFK-KUL JAL case above) are excluded the same way via
+the `known_unbookable` blocklist in `settings.yaml`. `Results` still isn't a
+bookability guarantee — it's the weaker-but-still-unverified prior — but it no
+longer requires manually reading the `single_carrier` column to triage.
 
-**If using `output_backend: sheets`**, this is done for you visually: rows
-where `single_carrier` is `True` get their background highlighted light green
-automatically as they're written, so the more-likely-bookable rows stand out
-at a glance without needing to read the column value. (CSV output has no
-equivalent — plain text files can't carry cell formatting — so with
-`output_backend: csv` you still check the column itself.)
+**If using `output_backend: sheets`**, rows written to `Results` also get
+their background highlighted light green (every row in `Results` is now
+`single_carrier: True` by construction, so this is mostly a visual confirmation
+rather than a further triage signal). CSV output has no equivalent — plain
+text files can't carry cell formatting.
 
 If a result looks off, the `google_flights_url` column isolates *where* the gap
 comes from: it's the same source Google Flights query `fli` used to find the fare
@@ -237,17 +240,39 @@ to the Log at the very end.
   alaskaair.com.
 - Computes cents-per-mile (price ÷ great-circle distance) for each result.
 - Writes qualifying results **as they're found** (not buffered to the end of the run):
-  - **Results** — anything under `record_threshold_cpm` (default 10.0¢/mi).
-  - **Best Deals** — the subset under `deal_threshold_cpm` (default 6.0¢/mi).
+  - **Results** — anything under `record_threshold_cpm` (default 10.0¢/mi) that
+    also passes `is_likely_bookable` (see below).
+  - **Wrong Carrier** — the itineraries that were under `record_threshold_cpm`
+    but did *not* pass `is_likely_bookable` — split out here instead of mixed
+    into `Results`, since we've confirmed by hand that these come back with
+    zero equivalent option on Alaska's own booking engine.
+  - **Best Deals** — the subset of `Results` under `deal_threshold_cpm`
+    (default 6.0¢/mi).
   - **Log** — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
     and result/deal counts.
   Controlled by `output_backend` in `settings.yaml`: `csv` (default, writes to
   `output/*.csv`, no setup needed) or `sheets` (writes to a Google Sheet, needs
-  credentials — see Setup below).
-- **Each run starts fresh**: `results.csv`/`best_deals.csv` (or the equivalent
-  Sheet tabs) are reset at the start of every run, so they reflect only that
-  run's findings — not an accumulating history across runs. (`log.csv`/the Log
-  tab is a separate run-history log and still accumulates, by design.)
+  credentials — see Setup below; a `Wrong Carrier` tab must exist in the Sheet
+  already, same as `Results`/`Best Deals`/`Log` — gspread can't create tabs).
+- **Each run starts fresh**: `results.csv`/`best_deals.csv`/`wrong_carrier.csv`
+  (or the equivalent Sheet tabs) are reset at the start of every run, so they
+  reflect only that run's findings — not an accumulating history across runs.
+  (`log.csv`/the Log tab is a separate run-history log and still accumulates,
+  by design.)
+- **`is_likely_bookable`** (`src/bookability.py`) is the algorithm behind the
+  Results/Wrong Carrier split. Two layers, most-confident first:
+  1. `known_unbookable` in `settings.yaml` — a small hand-curated blocklist of
+     `"AIRLINE:DESTINATION"` pairs (the carrier on the *final* leg + destination)
+     manually confirmed on alaskaair.com to have zero equivalent option. This
+     overrides `single_carrier`, since the JFK-KUL case below proved
+     `single_carrier: True` alone doesn't guarantee a match.
+  2. Otherwise, falls back to `single_carrier`: mixed-carrier itineraries go to
+     Wrong Carrier as unverified; single-carrier ones are the best remaining
+     signal and stay in Results.
+  Neither layer is proof of bookability — see the booking-link caveat below.
+  With only two confirmed real-world outcomes so far (both negative), this is
+  a triage heuristic, not a validated predictor; grow `known_unbookable` as you
+  manually verify more rows on alaskaair.com.
 - Caches each `(route, date, filters)` search on disk for 60 minutes by default
   (`.cache/flights/`, gitignored) — reruns within that window skip the network call
   and the rate-limit pause entirely. Set `FLIGHT_CACHE=0` to disable, e.g. for a

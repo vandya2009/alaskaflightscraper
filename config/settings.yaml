@@ -180,3 +180,24 @@ allowed_airlines:
 
 # How many cheapest qualifying flights to record per (route, date) pair.
 top_n_per_search: 1
+
+# Small hand-curated blocklist: "AIRLINE:DESTINATION" pairs (the carrier
+# operating the FINAL leg + destination airport) that have been manually
+# checked on alaskaair.com and confirmed NOT to match -- either zero results,
+# or (more common in practice) a nonzero price on a completely different
+# carrier/routing than the one recorded, since alaska_booking_url is a
+# generic O/D/date search, not itinerary-specific. Regardless of
+# single_carrier. Only add entries you've verified yourself; this is not
+# inferred from any general rule (see README's booking-link caveat --
+# single_carrier: True does NOT imply Alaska interline coverage. A same-day
+# spot check found this holds even for American's own metal on long-haul
+# international routes -- see AA:NRT / AA:SYD below).
+known_unbookable:
+  - "JL:KUL"   # JFK-KUL, JL5>JL723, single_carrier: True, 0 Alaska matches
+  - "QF:MEL"   # JFK-MEL, AA475>AA2827>QF94, 0 Alaska matches
+  - "BA:LHR"   # EWR-LHR, BA184, Alaska substituted EI100>EI152 (Aer Lingus) instead
+  - "KE:HKG"   # JFK-HKG, KE86>KE2001, Alaska substituted QR704>QR816 (Qatar) instead
+  - "AA:NRT"   # JFK-NRT, AA475>AA61, Alaska substituted QR702>QR808 (Qatar) instead
+  - "AA:SYD"   # JFK-SYD, AA302>AA73, Alaska substituted AS2314>QF714 instead
+  - "CX:KIX"   # JFK-KIX, CX831>CX566, Alaska substituted AA829 instead
+  - "QF:AKL"   # JFK-AKL, QF4 (nonstop), Alaska substituted QR702>QR914 instead
