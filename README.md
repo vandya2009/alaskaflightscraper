@@ -69,10 +69,13 @@ out to predict almost nothing.
 now defaults to the opposite assumption — every partner itinerary is treated
 as unverified (routed to `Wrong Carrier`) unless it clears one of two bars:
 
-1. **It's Alaska's own metal** (`last_leg_airline: AS`). Alaska selling its
-   own scheduled flight isn't an interline dependency at all, so there's no
-   realistic version of the substitution failure above — this is a structural
-   exception, not something that needed a spot check to justify.
+1. **It's Alaska's own metal for every leg** (`single_carrier: True` and
+   `last_leg_airline: AS`). Alaska selling its own scheduled flight isn't an
+   interline dependency at all, so there's no realistic version of the
+   substitution failure above — this is a structural exception, not something
+   that needed a spot check to justify. Checking `last_leg_airline` alone
+   isn't enough: a row like `AA1029 > AA693 > AS1062` still depends on Alaska
+   interlining that earlier AA leg, so it must also be `single_carrier`.
 2. **It's on the `known_bookable` allowlist** in `settings.yaml` — a small,
    hand-curated list of `"AIRLINE:DESTINATION"` pairs (the carrier on the
    *final* leg + the destination) that have actually been checked on
@@ -277,7 +280,8 @@ to the Log at the very end.
 - **`is_likely_bookable`** (`src/bookability.py`) is the algorithm behind the
   Results/Wrong Carrier split. It defaults to Wrong Carrier for everything,
   with two exceptions:
-  1. **Alaska's own metal** (`last_leg_airline: AS`) — not an interline
+  1. **Alaska's own metal for every leg** (`single_carrier: True` and
+     `last_leg_airline: AS`) — not an interline
      dependency, so it's always treated as bookable.
   2. **`known_bookable`** in `settings.yaml` — a small hand-curated allowlist
      of `"AIRLINE:DESTINATION"` pairs (the carrier on the *final* leg +
