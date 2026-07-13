@@ -40,46 +40,59 @@ booking.
 ### Which rows are actually worth checking?
 
 Not all rows carry the same risk of turning out like the JFK-MEL example above.
-The `single_carrier` column (True/False) flags whether every leg of the
-itinerary is operated by the same airline:
+Early on, the working theory was that the `single_carrier` column (True/False —
+whether every leg of the itinerary is operated by the same airline) predicted
+this: single-carrier itineraries rule out *one* failure mode (Alaska needing to
+combine two different partners into one interline ticket), so they seemed like
+the safer bet. Two real examples said otherwise from the start:
 
-- **`single_carrier: True`** — one airline handles the whole itinerary (a
-  nonstop, or a same-carrier connection like `AA475 > AA281`). This rules out
-  *one* failure mode (Alaska needing to combine two different partners into one
-  interline ticket), but **does not guarantee Alaska sells that carrier to that
-  destination at all** — see the JFK-KUL example below, where a pure
-  single-carrier Japan Airlines itinerary still had zero equivalent on Alaska's
-  site. Lower risk than `False`, not zero risk.
-- **`single_carrier: False`** — legs split across different airlines (e.g.
-  `AA475 > AA2827 > QF94`: American domestic + Qantas international). This is
-  the exact pattern that failed in the JFK-MEL example — Alaska's engine had
-  zero equivalent options, not just a different price. Treat these as
-  unverified until you actually check them, even though they often show the
-  best cents-per-mile numbers (long-haul routes inflate the ratio).
+- **JFK→MEL**: `AA475 > AA2827 > QF94` (American domestic + Qantas
+  international, `single_carrier: False`) — Alaska's engine had zero
+  equivalent options at all, not just a different price.
+- **JFK→KUL**: `JL5 > JL723` (both legs Japan Airlines, `single_carrier: True`)
+  — Alaska's own search came back with 27 results, sorted by stops, but zero
+  of them were Japan Airlines. Same failure, despite being single-carrier.
 
-**Second real example**: a JFK→KUL (Kuala Lumpur) row showed $644 on Japan
-Airlines (`JL5 > JL723`, both legs JAL — `single_carrier: True`). Alaska's own
-search for that route/date came back with 27 results, sorted by stops — all
-Qatar Airways (via Doha, cheapest **$1,326**, almost exactly double) or Cathay
-Pacific (via Hong Kong, $4,388+, one combined with Malaysia Airlines). Zero
-Japan Airlines options at all. So the real driver isn't single- vs.
-mixed-carrier — it's whether Alaska's engine has interline coverage loaded for
-*that specific carrier to that specific destination*, which varies even for a
-single, genuine Oneworld partner like JAL.
+So the real driver was never single- vs. mixed-carrier — it's whether Alaska's
+engine has interline coverage loaded for *that specific carrier to that
+specific destination*. That raised an obvious question: how often does
+single-carrier actually work, in practice? A hand spot-check of 10 more
+single-carrier partner itineraries (full detail in git history, not
+reproduced here) answered it: **8 came back as confirmed substitutions**
+(a nonzero price, but on a completely different carrier/routing than
+recorded — including two cases of *American's own metal* on long-haul
+international routes getting swapped for Qatar Airways or a Qantas
+connection), and only **2 actually matched**. `single_carrier` alone turned
+out to predict almost nothing.
 
-This split is now automated by `is_likely_bookable` (`src/bookability.py`):
-`single_carrier: False` rows are written to a separate `Wrong Carrier`
-tab/file instead of `Results`, and specific confirmed-bad single-carrier
-itineraries (like the JFK-KUL JAL case above) are excluded the same way via
-the `known_unbookable` blocklist in `settings.yaml`. `Results` still isn't a
-bookability guarantee — it's the weaker-but-still-unverified prior — but it no
-longer requires manually reading the `single_carrier` column to triage.
+**What this tool does about it**: `is_likely_bookable` (`src/bookability.py`)
+now defaults to the opposite assumption — every partner itinerary is treated
+as unverified (routed to `Wrong Carrier`) unless it clears one of two bars:
+
+1. **It's Alaska's own metal** (`last_leg_airline: AS`). Alaska selling its
+   own scheduled flight isn't an interline dependency at all, so there's no
+   realistic version of the substitution failure above — this is a structural
+   exception, not something that needed a spot check to justify.
+2. **It's on the `known_bookable` allowlist** in `settings.yaml` — a small,
+   hand-curated list of `"AIRLINE:DESTINATION"` pairs (the carrier on the
+   *final* leg + the destination) that have actually been checked on
+   alaskaair.com and found to return the same itinerary, or a same-carrier
+   one within a few percent of the recorded price. Nothing goes on this list
+   without being manually verified first; it is not inferred from any general
+   rule about carriers or regions.
+
+Everything else lands in `Wrong Carrier` by default, including single-carrier
+partner itineraries that simply haven't been checked yet. That's a
+deliberately conservative default given the 8-of-10 failure rate above — the
+cost of a false "bookable" is a wasted booking attempt, while the cost of a
+false "wrong carrier" is just a row you'd have checked anyway. Grow
+`known_bookable` as you verify more routes by hand; there's no way to infer
+new entries automatically (see the booking-link caveat above for why).
 
 **If using `output_backend: sheets`**, rows written to `Results` also get
-their background highlighted light green (every row in `Results` is now
-`single_carrier: True` by construction, so this is mostly a visual confirmation
-rather than a further triage signal). CSV output has no equivalent — plain
-text files can't carry cell formatting.
+their background highlighted light green as a visual confirmation that they
+cleared one of the two bars above. CSV output has no equivalent — plain text
+files can't carry cell formatting.
 
 If a result looks off, the `google_flights_url` column isolates *where* the gap
 comes from: it's the same source Google Flights query `fli` used to find the fare
@@ -156,10 +169,11 @@ the SerpApi-or-similar decision when one of these actually happens, not before:
   rate-limit risk *and* the cost-effectiveness case for a paid, stable API (see
   the cost math above — it scales with frequency × destinations × dates).
 - **You actually need the booking-link fix**, not just the cents-per-mile signal —
-  i.e. if the current "sort by `single_carrier`, then verify manually" workflow
-  stops being good enough for how you're using this. SerpApi's `booking_token`
-  flow is a real (if imperfect) improvement there; the scraping-reliability
-  argument alone isn't, on its own, worth the cost for occasional manual runs.
+  i.e. if the current "default to Wrong Carrier, grow `known_bookable` by hand"
+  workflow stops being good enough for how you're using this. SerpApi's
+  `booking_token` flow is a real (if imperfect) improvement there; the
+  scraping-reliability argument alone isn't, on its own, worth the cost for
+  occasional manual runs.
 
 What to check first, in order: `output/log.csv` status column → console `Failed:`
 messages for the actual error → `fli`'s release history for known issues — before
@@ -244,8 +258,9 @@ to the Log at the very end.
     also passes `is_likely_bookable` (see below).
   - **Wrong Carrier** — the itineraries that were under `record_threshold_cpm`
     but did *not* pass `is_likely_bookable` — split out here instead of mixed
-    into `Results`, since we've confirmed by hand that these come back with
-    zero equivalent option on Alaska's own booking engine.
+    into `Results`, since a real spot check (see below) found most partner
+    itineraries come back as a completely different, usually pricier,
+    carrier/routing on Alaska's own booking engine.
   - **Best Deals** — the subset of `Results` under `deal_threshold_cpm`
     (default 6.0¢/mi).
   - **Log** — one row per run: timestamp, status (`OK`/`PARTIAL`), a summary,
@@ -260,18 +275,20 @@ to the Log at the very end.
   (`log.csv`/the Log tab is a separate run-history log and still accumulates,
   by design.)
 - **`is_likely_bookable`** (`src/bookability.py`) is the algorithm behind the
-  Results/Wrong Carrier split. Two layers, most-confident first:
-  1. `known_unbookable` in `settings.yaml` — a small hand-curated blocklist of
-     `"AIRLINE:DESTINATION"` pairs (the carrier on the *final* leg + destination)
-     manually confirmed on alaskaair.com to have zero equivalent option. This
-     overrides `single_carrier`, since the JFK-KUL case below proved
-     `single_carrier: True` alone doesn't guarantee a match.
-  2. Otherwise, falls back to `single_carrier`: mixed-carrier itineraries go to
-     Wrong Carrier as unverified; single-carrier ones are the best remaining
-     signal and stay in Results.
-  Neither layer is proof of bookability — see the booking-link caveat below.
-  With only two confirmed real-world outcomes so far (both negative), this is
-  a triage heuristic, not a validated predictor; grow `known_unbookable` as you
+  Results/Wrong Carrier split. It defaults to Wrong Carrier for everything,
+  with two exceptions:
+  1. **Alaska's own metal** (`last_leg_airline: AS`) — not an interline
+     dependency, so it's always treated as bookable.
+  2. **`known_bookable`** in `settings.yaml` — a small hand-curated allowlist
+     of `"AIRLINE:DESTINATION"` pairs (the carrier on the *final* leg +
+     destination) manually confirmed on alaskaair.com to return the same
+     itinerary, or a same-carrier one within a few percent of the recorded
+     price.
+  Full rationale, including why this used to be a `single_carrier`-based
+  blocklist and why that flipped to an allowlist, is in "Which rows are
+  actually worth checking?" below. Neither exception is proof of
+  bookability — see the booking-link caveat below. This is a triage
+  heuristic, not a validated predictor; grow `known_bookable` as you
   manually verify more rows on alaskaair.com.
 - Caches each `(route, date, filters)` search on disk for 60 minutes by default
   (`.cache/flights/`, gitignored) — reruns within that window skip the network call

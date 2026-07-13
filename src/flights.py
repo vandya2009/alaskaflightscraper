@@ -171,7 +171,7 @@ def search_one_way(
                 "single_carrier": len({leg.airline.name for leg in r.legs}) == 1,
                 # The carrier flying the final (most international) leg -- used
                 # alongside `destination` as the key into settings.yaml's
-                # `known_unbookable` blocklist (see src/bookability.py). This is
+                # `known_bookable` allowlist (see src/bookability.py). This is
                 # often the same as `airline` (first leg) but not always, e.g.
                 # an AA domestic leg connecting to a QF international leg.
                 "last_leg_airline": last_leg.airline.name,

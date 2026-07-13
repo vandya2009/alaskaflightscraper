@@ -15,11 +15,13 @@ settings.yaml's home_airports.
 Only itineraries flown entirely by `allowed_airlines` are returned by the
 search. Of those, only results with cents_per_mile < `record_threshold_cpm`
 qualify, and are then split by `is_likely_bookable` (see src/bookability.py):
-likely-bookable ones go to the Results tab (and, if below `deal_threshold_cpm`,
-also to Best Deals); the rest go to Wrong Carrier instead, since we've
-confirmed by hand that mixed-carrier itineraries -- and even some
-single-carrier ones on settings.yaml's `known_unbookable` blocklist -- come
-back with zero equivalent option on Alaska's own booking engine.
+Alaska's own metal, or a partner itinerary on settings.yaml's
+`known_bookable` allowlist, goes to the Results tab (and, if below
+`deal_threshold_cpm`, also to Best Deals); everything else -- which by
+default means every partner itinerary not yet manually confirmed -- goes to
+Wrong Carrier instead, since a real spot check found single_carrier: True
+alone predicts almost nothing about whether Alaska's engine will actually
+reproduce that itinerary.
 """
 import sys
 import time
@@ -150,7 +152,7 @@ def main() -> None:
     max_stops = str(SETTINGS.get("max_stops", "ANY"))
     exclude_basic_economy = bool(SETTINGS.get("exclude_basic_economy", True))
     allowed_airlines = {a.upper() for a in SETTINGS["allowed_airlines"]}
-    known_unbookable = {str(k).upper() for k in SETTINGS.get("known_unbookable", [])}
+    known_bookable = {str(k).upper() for k in SETTINGS.get("known_bookable", [])}
 
     total_results = 0
     total_deals = 0
@@ -210,8 +212,8 @@ def main() -> None:
                 continue
             seen_results.update(result_key(r) for r in new_kept)
 
-            bookable = [r for r in new_kept if is_likely_bookable(r, known_unbookable)]
-            wrong_carrier = [r for r in new_kept if not is_likely_bookable(r, known_unbookable)]
+            bookable = [r for r in new_kept if is_likely_bookable(r, known_bookable)]
+            wrong_carrier = [r for r in new_kept if not is_likely_bookable(r, known_bookable)]
 
             if bookable:
                 best = min(bookable, key=lambda r: r["cents_per_mile"])
