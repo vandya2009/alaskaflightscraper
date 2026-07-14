@@ -128,7 +128,7 @@ def test_single_carrier_row_gets_highlighted(fake_sheet, sample_row):
 
     assert len(worksheet.formatted_ranges) == 1
     ranges, fmt = worksheet.formatted_ranges[0]
-    assert ranges == ["A2:P2"]  # header is row 1, so the data row lands on row 2
+    assert ranges == ["A2:Q2"]  # header is row 1, so the data row lands on row 2
     assert fmt == {"backgroundColor": sheets._PREFERRED_ROW_COLOR}
 
 
@@ -151,7 +151,7 @@ def test_only_single_carrier_rows_highlighted_within_a_mixed_batch(fake_sheet, s
     assert len(worksheet.formatted_ranges) == 1
     ranges, _ = worksheet.formatted_ranges[0]
     # header=row1, so the 3 data rows land on 2,3,4 -- only rows 2 and 4 (True) get highlighted
-    assert ranges == ["A2:P2", "A4:P4"]
+    assert ranges == ["A2:Q2", "A4:Q4"]
 
 
 def test_second_append_highlights_at_the_correct_row_offset(fake_sheet, sample_row):
@@ -163,4 +163,4 @@ def test_second_append_highlights_at_the_correct_row_offset(fake_sheet, sample_r
 
     assert len(worksheet.formatted_ranges) == 1
     ranges, _ = worksheet.formatted_ranges[0]
-    assert ranges == ["A3:P3"]  # header(1) + first append(2) -> second append lands on row 3
+    assert ranges == ["A3:Q3"]  # header(1) + first append(2) -> second append lands on row 3

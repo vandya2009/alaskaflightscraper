@@ -33,6 +33,7 @@ RESULT_HEADERS = [
     "airline",
     "flight_numbers",
     "single_carrier",
+    "last_leg_airline",
     "depart_time",
     "arrive_time",
     "alaska_booking_url",
@@ -83,7 +84,7 @@ def reset_results() -> None:
     only that run's findings, not an accumulating history across runs. Tabs
     that don't exist yet are left alone -- gspread can't create them anyway."""
     sheet = _open_sheet()
-    for tab_name in ("Results", "Best Deals"):
+    for tab_name in ("Results", "Best Deals", "Wrong Carrier"):
         try:
             worksheet = sheet.worksheet(tab_name)
         except gspread.exceptions.WorksheetNotFound:

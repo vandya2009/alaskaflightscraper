@@ -14,8 +14,14 @@ settings.yaml's home_airports.
 
 Only itineraries flown entirely by `allowed_airlines` are returned by the
 search. Of those, only results with cents_per_mile < `record_threshold_cpm`
-are written to the Results tab; results below `deal_threshold_cpm` are also
-written to the Best Deals tab.
+qualify, and are then split by `is_likely_bookable` (see src/bookability.py):
+Alaska's own metal, or a partner itinerary on settings.yaml's
+`known_bookable` allowlist, goes to the Results tab (and, if below
+`deal_threshold_cpm`, also to Best Deals); everything else -- which by
+default means every partner itinerary not yet manually confirmed -- goes to
+Wrong Carrier instead, since a real spot check found single_carrier: True
+alone predicts almost nothing about whether Alaska's engine will actually
+reproduce that itinerary.
 """
 import sys
 import time
@@ -24,6 +30,7 @@ from datetime import date, timedelta
 import airportsdata
 from fli.models import Airport
 
+from src.bookability import is_likely_bookable
 from src.config import SETTINGS
 from src.flights import search_one_way, was_cached
 from src.routes import planned_searches
@@ -145,9 +152,11 @@ def main() -> None:
     max_stops = str(SETTINGS.get("max_stops", "ANY"))
     exclude_basic_economy = bool(SETTINGS.get("exclude_basic_economy", True))
     allowed_airlines = {a.upper() for a in SETTINGS["allowed_airlines"]}
+    known_bookable = {str(k).upper() for k in SETTINGS.get("known_bookable", [])}
 
     total_results = 0
     total_deals = 0
+    total_wrong_carrier = 0
     errors: list[str] = []
     # reset_results() above means this is always empty at this point -- kept as
     # a within-run safety net in case the exact same (route, date, price) ever
@@ -201,21 +210,30 @@ def main() -> None:
             if not new_kept:
                 print("      Already recorded (no new fares).", flush=True)
                 continue
-
-            best = min(new_kept, key=lambda r: r["cents_per_mile"])
-            print(
-                f"      Recording {len(new_kept)}: best ${best['price_usd']:.0f} "
-                f"@ {best['cents_per_mile']:.1f}¢/mi on {best['airline']}",
-                flush=True,
-            )
-            append_results(new_kept, tab_name="Results")
             seen_results.update(result_key(r) for r in new_kept)
-            total_results += len(new_kept)
 
-            deals = [r for r in new_kept if r["cents_per_mile"] < deal_cpm]
-            if deals:
-                append_results(deals, tab_name="Best Deals")
-                total_deals += len(deals)
+            bookable = [r for r in new_kept if is_likely_bookable(r, known_bookable)]
+            wrong_carrier = [r for r in new_kept if not is_likely_bookable(r, known_bookable)]
+
+            if bookable:
+                best = min(bookable, key=lambda r: r["cents_per_mile"])
+                print(
+                    f"      Recording {len(bookable)}: best ${best['price_usd']:.0f} "
+                    f"@ {best['cents_per_mile']:.1f}¢/mi on {best['airline']}",
+                    flush=True,
+                )
+                append_results(bookable, tab_name="Results")
+                total_results += len(bookable)
+
+                deals = [r for r in bookable if r["cents_per_mile"] < deal_cpm]
+                if deals:
+                    append_results(deals, tab_name="Best Deals")
+                    total_deals += len(deals)
+
+            if wrong_carrier:
+                print(f"      +{len(wrong_carrier)} screened to Wrong Carrier.", flush=True)
+                append_results(wrong_carrier, tab_name="Wrong Carrier")
+                total_wrong_carrier += len(wrong_carrier)
         finally:
             # Pause after every LIVE search to avoid Google Flights rate-limiting
             # (HTTP 429). 1.5s was too aggressive at ~640 plans (10/642 = 1.5%
@@ -224,7 +242,8 @@ def main() -> None:
                 time.sleep(2.0)
 
     print(
-        f"\n{total_results} results ({total_deals} below {deal_cpm}¢/mi) "
+        f"\n{total_results} results ({total_deals} below {deal_cpm}¢/mi), "
+        f"{total_wrong_carrier} screened to Wrong Carrier, "
         f"written incrementally to output/ as they were found.",
         flush=True,
     )

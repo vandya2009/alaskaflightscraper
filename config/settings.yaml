@@ -180,3 +180,24 @@ allowed_airlines:
 
 # How many cheapest qualifying flights to record per (route, date) pair.
 top_n_per_search: 1
+
+# Small hand-curated ALLOWLIST: "AIRLINE:DESTINATION" pairs (the carrier
+# operating the FINAL leg + destination airport) manually confirmed on
+# alaskaair.com to actually return the same itinerary (or a same-carrier,
+# similarly-priced one) -- not just some nonzero price, since
+# alaska_booking_url is a generic O/D/date search that will almost always
+# return *something*, usually on a different carrier/routing than recorded.
+#
+# This is intentionally an allowlist, not a blocklist: a real spot check of
+# 10 partner itineraries (see README) found single_carrier: True predicts
+# almost nothing on its own -- only 2 matched (1 exact, 1 close), 8 were
+# confirmed substitutions onto a different carrier, INCLUDING two cases of
+# American's own metal on long-haul international routes. So the default
+# for every partner carrier is now Wrong Carrier; only entries confirmed
+# here (or Alaska's own metal -- see src/bookability.py) stay in Results.
+# Only add entries you've verified yourself.
+known_bookable:
+  - "QR:DOH"   # JFK-DOH, QR706 (nonstop), exact match
+  - "QR:MCT"   # JFK-MCT, QR706>QR1148 recorded; Alaska showed QR702>QR1124 -- same carrier/route, price within 4%
+  - "QR:CMB"   # JFK-CMB, QR706>QR664, Alaska matched at the same/better price
+  - "AA:ANC"   # JFK-ANC, AA2369>AA1570, Alaska showed a better price (domestic AA, not the long-haul-international pattern that failed for NRT/SYD)

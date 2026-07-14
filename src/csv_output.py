@@ -21,6 +21,7 @@ RESULT_HEADERS = [
     "airline",
     "flight_numbers",
     "single_carrier",
+    "last_leg_airline",
     "depart_time",
     "arrive_time",
     "alaska_booking_url",
@@ -60,7 +61,7 @@ def existing_keys(tab_name: str) -> set[tuple]:
 def reset_results() -> None:
     """Called once at the start of a run so results.csv/best_deals.csv reflect
     only that run's findings, not an accumulating history across runs."""
-    for tab_name in ("Results", "Best Deals"):
+    for tab_name in ("Results", "Best Deals", "Wrong Carrier"):
         _path_for(tab_name).unlink(missing_ok=True)
 
 

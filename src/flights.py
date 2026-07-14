@@ -169,6 +169,12 @@ def search_one_way(
                 # Japan Airlines itinerary, zero equivalent on Alaska's site).
                 # Lower risk than mixed-carrier, not zero risk. See README.
                 "single_carrier": len({leg.airline.name for leg in r.legs}) == 1,
+                # The carrier flying the final (most international) leg -- used
+                # alongside `destination` as the key into settings.yaml's
+                # `known_bookable` allowlist (see src/bookability.py). This is
+                # often the same as `airline` (first leg) but not always, e.g.
+                # an AA domestic leg connecting to a QF international leg.
+                "last_leg_airline": last_leg.airline.name,
                 "depart_time": first_leg.departure_datetime.strftime("%H:%M"),
                 "arrive_time": last_leg.arrival_datetime.strftime("%H:%M"),
                 "alaska_booking_url": _alaska_booking_url(
